@@ -10,4 +10,5 @@ class UserAdmin(admin.ModelAdmin):
 
     def name(self, obj):
         return obj
+
     name.short_description = "ФИО"

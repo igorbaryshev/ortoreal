@@ -21,10 +21,12 @@ class InventoryLogAdmin(admin.ModelAdmin):
 
     def vendor_code(self, obj):
         return obj.part.vendor_code
+
     vendor_code.short_description = "Артикул"
 
     def name(self, obj):
         return obj.part.name
+
     name.short_description = "Название"
 
 
@@ -46,15 +48,16 @@ class PartAdmin(admin.ModelAdmin):
 class ItemAdmin(admin.ModelAdmin):
     list_display = ("id", "vendor_code", "name", "date_added")
     list_display_links = list_display
-    ordering = ("-date_added",)
     search_fields = ("vendor_code", "part")
 
     def vendor_code(self, obj):
         return obj.part.vendor_code
+
     vendor_code.short_description = "Артикул"
 
     def name(self, obj):
         return obj.part.name
+
     name.short_description = "Название"
 
 

@@ -43,6 +43,7 @@ class Part(models.Model):
     @property
     def quantity(self):
         return f"{self.items.count()}"
+
     quantity.fget.short_description = "Кол-во"
 
     class Meta:
@@ -94,7 +95,7 @@ class Product(models.Model):
 
 class InventoryLog(models.Model):
     class LogAction(models.TextChoices):
-        RECEIVED = "RECEPTION", _("Приход")
+        RECEIVED = "RECEIVED", _("Приход")
         TOOK = "TOOK", _("Взял")
         RETURNED = "RETURNED", _("Вернул")
 
@@ -132,5 +133,8 @@ class InventoryLog(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         if self.operation == self.LogAction.RECEIVED:
-            batch = [Item(part=self.part, date_added=self.date) for _ in range(self.quantity)]
+            batch = [
+                Item(part=self.part, date_added=self.date)
+                for _ in range(self.quantity)
+            ]
             Item.objects.bulk_create(batch)
