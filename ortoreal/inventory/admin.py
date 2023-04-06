@@ -3,6 +3,20 @@ from django.contrib import admin
 from inventory.models import InventoryLog, Part, Item, Vendor, Product
 
 
+@admin.register(Part)
+class PartAdmin(admin.ModelAdmin):
+    list_display = (
+        "vendor_code",
+        "name",
+        "price",
+        "quantity",
+        "units",
+        "vendor",
+        "note",
+    )
+    search_fields = ("vendor_code", "name")
+
+
 @admin.register(InventoryLog)
 class InventoryLogAdmin(admin.ModelAdmin):
     list_display = (
@@ -14,6 +28,7 @@ class InventoryLogAdmin(admin.ModelAdmin):
         "patient",
         "prosthetist",
         "date",
+        "comment",
     )
     list_display_links = ("id", "operation", "vendor_code", "name")
     search_fields = ("vendor_code", "part")
@@ -30,23 +45,9 @@ class InventoryLogAdmin(admin.ModelAdmin):
     name.short_description = "Название"
 
 
-@admin.register(Part)
-class PartAdmin(admin.ModelAdmin):
-    list_display = (
-        "vendor_code",
-        "name",
-        "price",
-        "quantity",
-        "units",
-        "vendor",
-        "note",
-    )
-    search_fields = ("vendor_code", "name")
-
-
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
-    list_display = ("id", "vendor_code", "name", "date_added")
+    list_display = ("id", "vendor_code", "name", "warehouse", "date_added")
     list_display_links = list_display
     search_fields = ("vendor_code", "part")
 

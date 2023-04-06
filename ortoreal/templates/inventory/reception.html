@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if is_reception %}
+    Добавить приход
+  {% elif being_taken %}
+    Расход
+  {% else %}
+    Возврат
+  {% endif %}
+{% endblock title %}
+{% block content %}
+  <div class="card-body">
+    {% include "includes/form_errors.html" %}
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% include "includes/form_fields.html" %}
+      {% if is_edit %}
+        <div class="d-flex justify-content-between">
+          <button type="button"
+                  class="btn btn-danger"
+                  data-bs-toggle="modal"
+                  data-bs-target="#deleteModal">Удалить</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      {% else %}
+        <div class="d-flex justify-content-end">
+          <button type="submit" class="btn btn-primary">Добавить</button>
+        </div>
+      {% endif %}
+    </form>
+  </div>
+{% endblock content %}

@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 
 from users.models import Patient
 
@@ -55,17 +56,29 @@ class Part(models.Model):
 
 
 class Item(models.Model):
+    class Warehouse(models.TextChoices):
+        C1 = "с1", _("C1")
+        С2 = "с2", _("C2")
+
     part = models.ForeignKey(
         Part,
-        verbose_name="Комплектующее",
+        verbose_name="Артикул",
         on_delete=models.CASCADE,
         related_name="items",
+        blank=False,
+        null=False,
     )
-    date_added = models.DateTimeField("Дата", auto_now_add=True)
+    date_added = models.DateField("Дата", auto_now_add=True)
+    warehouse = models.CharField(
+        "Склад", max_length=16, choices=Warehouse.choices
+    )
 
     class Meta:
         verbose_name = "Комплектующее на складе"
         verbose_name_plural = "Комплектующие на складе"
+
+    def __str__(self):
+        return self.part.__str__()
 
 
 class Product(models.Model):
@@ -120,8 +133,15 @@ class InventoryLog(models.Model):
         blank=True,
         null=True,
     )
+    date = models.DateField("Дата", default=timezone.now)
     comment = models.CharField("Комментарий", max_length=1024, blank=True)
-    date = models.DateTimeField("Дата", auto_now_add=True)
+    added_by = models.ForeignKey(
+        User,
+        verbose_name="Кем добавлено",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="+",
+    )
 
     class Meta:
         verbose_name = "Операция на складе"
