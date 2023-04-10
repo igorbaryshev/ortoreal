@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from inventory.models import InventoryLog, Part, Item, Vendor, Product
+from inventory.models import InventoryLog, Part, Item, Vendor
 
 
 @admin.register(Part)
@@ -25,7 +25,6 @@ class InventoryLogAdmin(admin.ModelAdmin):
         "vendor_code",
         "name",
         "quantity",
-        "patient",
         "prosthetist",
         "date",
         "comment",
@@ -65,8 +64,3 @@ class ItemAdmin(admin.ModelAdmin):
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
     list_display = ("name",)
-
-
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "region", "price")

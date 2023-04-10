@@ -13,12 +13,10 @@
       {% for item_form in formset %}
         <div class="row item-form">{% include "includes/form_fields.html" with form=item_form %}</div>
       {% endfor %}
-      <div class="button-row">
+      <div class="button-row position-relative">
         <button id="add-form" type="button" class="btn btn-secondary">+</button>
         <button id="remove-form" type="button" class="btn btn-danger">-</button>
-        <div class="d-flex justify-content-end">
-          <button type="submit" class="btn btn-primary">Добавить</button>
-        </div>
+        <button type="submit" class="btn btn-primary position-absolute end-0">Добавить</button>
       </div>
     </form>
   </div>
@@ -27,16 +25,44 @@
     let formNum = itemForm.length;
     if (formNum == 1) {
       $("#remove-form").hide();
-      console.log("yes");
     }
+
     let firstForm = itemForm[0].cloneNode(true);
-    console.log(firstForm);
+    function cleanForm(form) {
+        alerts = form.querySelectorAll(".alert")
+        alerts.forEach(alert => {
+            alert.remove();
+        });
+        if (form.querySelector('[name$="-warehouse"]')) {
+            form.querySelector('[name$="-warehouse"]').value = "";
+        } else {
+            form.querySelector('[name$="-total"]').value = "";
+        }
+        form.querySelector('[name$="-part"]').value = "";
+        form.querySelector('[name$="-quantity"]').value = 0;
+        form.querySelectorAll('label').forEach(label => {
+            label.remove();
+        })
+    }
+
+    cleanForm(firstForm);
+
     $(document).ready(function() {
+        $("#id_entry-operation").addClass("form-control");
+        $("#id_entry-prosthetist").select2();
+        $("#id_entry-client").select2();
         $('[id$="-part"').each(function() {
             $(this).select2();
         });
+        $(".select2.select2-container").each(function() {
+            $(this).addClass("form-control");
+        });
+        $(".form-group.col:first-child").each(function() {
+          $(this).addClass("w-50");
+        });
+        $('[id$="-part"]').each(changeTotal);
     });
-    console.log(firstForm)
+
     let container = document.querySelector("#form-container");
     let addButton = document.querySelector("#add-form");
     let removeButton = document.querySelector("#remove-form");
@@ -55,19 +81,15 @@
         let formRegex = RegExp(`item-(\\d){1,3}-`,'g');
 
         newForm.innerHTML = newForm.innerHTML.replace(formRegex, `item-${formNum}-`);
-        alerts = newForm.querySelectorAll(".alert")
-        alerts.forEach(alert => {
-          alert.remove();
-        });
-        newForm.querySelector('[name$="-warehouse"]').value = "";
-        newForm.querySelector('[name$="-part"]').value = "";
-        newForm.querySelector('[name$="-quantity"]').value = 0;
         container.insertBefore(newForm, buttonRow);
         $(`[name="item-${formNum}-part"]`).select2();
+        $(".select2.select2-container").last().addClass("form-control");
+        $(".form-group.col:first-child").last().addClass("w-50");
         formNum++;
         totalForms.setAttribute('value', `${formNum}`);
         $("#remove-form").show();
         console.log(formNum);
+        $('[id$="-part"]').on('change', changeTotal);
     }
 
     function removeForm(e) {
@@ -83,26 +105,69 @@
             $("#remove-form").hide();
         }
     }
+
+    $('[id$="-part"]').on('change', changeTotal);
+    
+    function changeTotal() {
+        console.log("trying");
+        let value = $(this).val();
+        console.log(value);
+        $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-total"]').children("select").prop('selectedIndex', value);
+    }
   </script>
   <style>
-    .select2.select2-container {
-      /*width: 100% !important;*/
-      margin-bottom: 26px;
+    :root {
+      --alert-margin-top: -4px;
+      --alert-margin-bottom: -20px;
     }
     .form-control {
       padding-bottom: 0;
       padding-top: 0;
-      margin-bottom: 26px;
       line-height: 26px;
-      border: 1px solid #aaa;
     }
     .alert {
-      font-size: 15px;
-      margin-bottom: 6px !important;
-      margin-top: -26px !important;
+      z-index: -1;
+      font-size: 13px;
+      margin-top: var(--alert-margin-top) !important;
+      margin-bottom: var(--alert-margin-bottom);
+    }
+    .row.item-form {
+      margin-bottom: calc(-1 * var(--alert-margin-bottom));
+    }
+    .select2-container .select2-selection--single .select2-selection__rendered {
+      padding-left: 0px;
+      padding-right: 8px;
+    }
+    .select2-container .select2-selection--single {
+      height: 26px;
+    }
+    .select2-container--default .select2-selection--single {
+      background-color: unset;
+      border: none;
+      line-height: 26px;
+    }
+    .form-group.col:not(:first-child) {
+      min-width: 125px;
+      max-width: 150px;
+    }
+    /*.form-group.col:first-child {
+      flex: 1 0 45%;
+    }*/
+    .select2.select2-container {
+      width: 50% !important;
+    }
+    .form-group .select2.select2-container {
+      width: 100% !important;
     }
     .button-row {
-      transition: all .1s;
+      padding-top: 5px;
+    }
+    #id_entry-operation {
+      width: 25% !important;
+      display: inline-block;
+    }
+    .row {
+      flex-wrap: nowrap;
     }
   </style>
 {% endblock content %}

@@ -3,7 +3,8 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
-from users.models import Patient
+from clients.models import Client
+
 
 User = get_user_model()
 
@@ -25,11 +26,16 @@ class Part(models.Model):
         PIECES = "pieces", _("шт.")
         SETS = "sets", _("компл.")
         PACKAGES = "packages", _("упак.")
+        ITEMS = "items", _("ед.")
 
     vendor_code = models.CharField("Артикул", max_length=256, unique=True)
     name = models.CharField("Наименование", max_length=1024)
     units = models.CharField(
-        "Единицы", max_length=32, choices=Units.choices, blank=True
+        "Единицы",
+        max_length=32,
+        choices=Units.choices,
+        blank=True,
+        default=Units.ITEMS,
     )
     price = models.DecimalField("Цена, руб.", max_digits=11, decimal_places=2)
     vendor = models.ForeignKey(
@@ -81,33 +87,34 @@ class Item(models.Model):
         return self.part.__str__()
 
 
-class Product(models.Model):
-    class Region(models.TextChoices):
-        MOSCOW = "Moscow", _("Москва")
-        MOSCOW_REGION = "Moscow region", _("Московская область")
-
-    name = models.CharField("Название", max_length=1024)
-    price = models.DecimalField("Цена", max_digits=11, decimal_places=2)
-    parts = models.ManyToManyField(Item, verbose_name="Комплектующие")
-    region = models.CharField("Регион", max_length=128, choices=Region.choices)
-    patient = models.ForeignKey(
-        Patient,
-        verbose_name="Инвалид",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-    )
-
-    class Meta:
-        verbose_name = "Модель протеза"
-        verbose_name_plural = "Модели протезов"
-
-    def __str__(self) -> str:
-        return self.name
+# class Product(models.Model):
+#    class Region(models.TextChoices):
+#        MOSCOW = "Moscow", _("Москва")
+#        MOSCOW_REGION = "Moscow region", _("Московская область")
+#
+#    name = models.CharField("Название", max_length=1024)
+#    price = models.DecimalField("Цена", max_digits=11, decimal_places=2)
+#    parts = models.ManyToManyField(Item, verbose_name="Комплектующие")
+#    region = models.CharField("Регион", max_length=128, choices=Region.choices)
+#    patient = models.ForeignKey(
+#        Patient,
+#        verbose_name="Инвалид",
+#        on_delete=models.SET_NULL,
+#        blank=True,
+#        null=True,
+#    )
+#
+#    class Meta:
+#        verbose_name = "Модель протеза"
+#        verbose_name_plural = "Модели протезов"
+#
+#    def __str__(self) -> str:
+#        return self.name
 
 
 class InventoryLog(models.Model):
     class LogAction(models.TextChoices):
+        EMPTY = "", _("---выбрать---")
         RECEIVED = "RECEIVED", _("Приход")
         TOOK = "TOOK", _("Взял")
         RETURNED = "RETURNED", _("Вернул")
@@ -119,13 +126,6 @@ class InventoryLog(models.Model):
         Part, verbose_name="Комплектующее", on_delete=models.CASCADE
     )
     quantity = models.SmallIntegerField("Количество")
-    patient = models.ForeignKey(
-        Patient,
-        verbose_name="Инвалид",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-    )
     prosthetist = models.ForeignKey(
         User,
         verbose_name="Протезист",
@@ -142,6 +142,13 @@ class InventoryLog(models.Model):
         null=True,
         related_name="+",
     )
+    client = models.ForeignKey(
+        Client,
+        verbose_name="Клиент",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+    )
 
     class Meta:
         verbose_name = "Операция на складе"
@@ -149,12 +156,3 @@ class InventoryLog(models.Model):
 
     def __str__(self):
         return f"{self.operation} {self.quantity} {self.part}"
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        if self.operation == self.LogAction.RECEIVED:
-            batch = [
-                Item(part=self.part, date_added=self.date)
-                for _ in range(self.quantity)
-            ]
-            Item.objects.bulk_create(batch)
