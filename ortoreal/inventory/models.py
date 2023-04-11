@@ -48,10 +48,22 @@ class Part(models.Model):
     note = models.CharField("Примечание", max_length=1024, blank=True)
 
     @property
-    def quantity(self):
+    def quantity_c1(self):
+        return f"{self.items.filter(warehouse=Item.Warehouse.C1).count()}"
+
+    quantity_c1.fget.short_description = "Кол-во(С1)"
+
+    @property
+    def quantity_c2(self):
+        return f"{self.items.filter(warehouse=Item.Warehouse.C2).count()}"
+
+    quantity_c2.fget.short_description = "Кол-во(С2)"
+
+    @property
+    def quantity_total(self):
         return f"{self.items.count()}"
 
-    quantity.fget.short_description = "Кол-во"
+    quantity_total.fget.short_description = "Кол-во"
 
     class Meta:
         verbose_name = "Модель комплектующего"
@@ -64,7 +76,7 @@ class Part(models.Model):
 class Item(models.Model):
     class Warehouse(models.TextChoices):
         C1 = "с1", _("C1")
-        С2 = "с2", _("C2")
+        C2 = "с2", _("C2")
 
     part = models.ForeignKey(
         Part,
@@ -113,11 +125,16 @@ class Item(models.Model):
 
 
 class InventoryLog(models.Model):
+    class PartialLogAction(models.TextChoices):
+        EMPTY = "", _("---выбрать---")
+        RECEIVED = "RECEIVED", _("Приход")
+        RETURNED = "RETURNED", _("Возврат")
+
     class LogAction(models.TextChoices):
         EMPTY = "", _("---выбрать---")
         RECEIVED = "RECEIVED", _("Приход")
-        TOOK = "TOOK", _("Взял")
         RETURNED = "RETURNED", _("Вернул")
+        TOOK = "TOOK", _("Взял")
 
     operation = models.CharField(
         "Операция", max_length=32, choices=LogAction.choices

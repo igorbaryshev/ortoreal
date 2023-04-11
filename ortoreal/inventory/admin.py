@@ -6,10 +6,13 @@ from inventory.models import InventoryLog, Part, Item, Vendor
 @admin.register(Part)
 class PartAdmin(admin.ModelAdmin):
     list_display = (
+        "id",
         "vendor_code",
         "name",
         "price",
-        "quantity",
+        "quantity_total",
+        "quantity_c1",
+        "quantity_c2",
         "units",
         "vendor",
         "note",
@@ -30,7 +33,7 @@ class InventoryLogAdmin(admin.ModelAdmin):
         "comment",
     )
     list_display_links = ("id", "operation", "vendor_code", "name")
-    search_fields = ("vendor_code", "part")
+    search_fields = ("part__vendor_code", "part__name")
     autocomplete_fields = ("part",)
 
     def vendor_code(self, obj):
@@ -48,7 +51,7 @@ class InventoryLogAdmin(admin.ModelAdmin):
 class ItemAdmin(admin.ModelAdmin):
     list_display = ("id", "vendor_code", "name", "warehouse", "date_added")
     list_display_links = list_display
-    search_fields = ("vendor_code", "part")
+    search_fields = ("part__vendor_code", "part__name")
 
     def vendor_code(self, obj):
         return obj.part.vendor_code

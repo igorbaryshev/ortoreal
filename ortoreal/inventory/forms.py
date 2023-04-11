@@ -1,5 +1,5 @@
 from django import forms
-from django.db.models import Case, Count, Value, When, CharField
+from django.db.models import Count
 from django.utils import timezone
 
 from inventory.models import InventoryLog, Item, Part
@@ -9,22 +9,37 @@ class DatePicker(forms.DateInput):
     input_type = "date"
 
 
-class InventoryLogForm(forms.ModelForm):
-    class Meta:
-        model = InventoryLog
+class InventoryLogFormMeta:
+    model = InventoryLog
+    widgets = {
+        "date": DatePicker(
+            attrs={"value": timezone.now}, format="%Y-%m-%d"
+        )
+    }
+
+
+class InventoryAddForm(forms.ModelForm):
+    operation = forms.ChoiceField(
+        label="Операция",
+        choices=InventoryLog.PartialLogAction.choices,
+    )
+
+    class Meta(InventoryLogFormMeta):
         fields = (
-            "id",
             "operation",
+            "date",
+            "comment",
+        )
+
+
+class InventoryTakeForm(forms.ModelForm):
+    class Meta(InventoryLogFormMeta):
+        fields = (
             "prosthetist",
             "client",
             "date",
             "comment",
         )
-        widgets = {
-            "date": DatePicker(
-                attrs={"value": timezone.now}, format="%Y-%m-%d"
-            )
-        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -42,7 +57,7 @@ class ItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['part'].empty_label = "---выбрать---"
+        self.fields["part"].empty_label = "---выбрать---"
 
 
 class ItemAddForm(ItemForm):
