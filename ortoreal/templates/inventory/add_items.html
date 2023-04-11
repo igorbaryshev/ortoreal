@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}
+  {% if adding %}
+    Добавить/Вернуть
+  {% elif taking %}
+    Взять
+  {% endif %}
+{% endblock title %}
+{% block content %}
+  <div class="card-body">
+    {% include "includes/form_errors.html" %}
+    <form method="post"
+          enctype="multipart/form-data"
+          id="form-container"
+          class="{% if adding %} adding {% elif taking %} taking {% endif %}">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <hr />
+      {{ formset.management_form }}
+      {% for item_form in formset %}
+        <div class="row item-form">{% include "includes/form_fields.html" with form=item_form %}</div>
+      {% endfor %}
+      <div class="button-row position-relative">
+        <button id="add-form" type="button" class="btn btn-secondary">+</button>
+        <button id="remove-form" type="button" class="btn btn-danger">-</button>
+        <button id="submit-form"
+                type="submit"
+                class="btn btn-primary position-absolute end-0">
+          {% if adding %}
+            Добавить
+          {% elif taking %}
+            Взять
+          {% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+  <script>
+    let itemForm = document.querySelectorAll(".item-form");
+    let formNum = itemForm.length;
+    if (formNum == 1) {
+      $("#remove-form").hide();
+    }
+
+    let firstForm = itemForm[0].cloneNode(true);
+  
+    function cleanForm(form) {
+        alerts = form.querySelectorAll(".alert")
+        alerts.forEach(alert => {
+            alert.remove();
+        });
+        if (form.querySelector('[name$="-warehouse"]')) {
+            form.querySelector('[name$="-warehouse"]').value = "";
+        } else {
+            form.querySelector('[name$="-total"]').value = "";
+        }
+        form.querySelector('[name$="-part"]').value = "";
+        form.querySelector('[name$="-quantity"]').value = 0;
+        form.querySelectorAll('label').forEach(label => {
+            label.remove();
+        });
+    }
+
+    $(document).ready(function() {
+        $("#id_entry-operation").addClass("form-control");
+        $("#id_entry-prosthetist").select2();
+        $("#id_entry-client").select2();
+        $('[id$="-part"').each(function() {
+            $(this).select2();
+        });
+        $(".select2.select2-container").each(function() {
+            $(this).addClass("form-control");
+        });
+        $(".form-group.col:first-child").each(function() {
+          $(this).addClass("w-50");
+        });
+        $('[id$="-part"]').each(changeTotal);
+    });
+
+    let container = document.querySelector("#form-container");
+    let addButton = document.querySelector("#add-form");
+    let removeButton = document.querySelector("#remove-form");
+    let totalForms = document.querySelector("#id_item-TOTAL_FORMS");
+    let buttonRow = document.querySelector(".button-row");
+    let submitButton = document.querySelector("#submit-form");
+
+    addButton.addEventListener('click', addForm);
+    removeButton.addEventListener('click', removeForm);    
+    submitButton.addEventListener('click', removeLastEmpty);
+
+    function removeLastEmpty(e) {
+        e.preventDefault();
+        if (formNum > 1) {
+            let itemForm = document.querySelectorAll(".item-form");
+            let lastForm = itemForm[formNum - 1];
+            let select = lastForm.querySelector("select").value;
+            let quantity = lastForm.querySelector("input").value;
+            if (!select && quantity == "0") {
+                removeForm(e);
+            }
+        }
+        let form_container = document.querySelector("#form-container");
+        if (form_container.checkValidity()) {
+            form_container.submit();
+        }
+        else {
+            form_container.reportValidity();
+        }
+    }
+
+    function addForm(e) {
+        e.preventDefault();
+        let form = firstForm.cloneNode(true);
+        let formRegex = RegExp(`item-(\\d){1,3}-`,'g');
+
+        
+        alerts = form.querySelectorAll(".alert")
+        alerts.forEach(alert => {
+            alert.remove();
+        });
+
+        form.innerHTML = form.innerHTML.replace(formRegex, `item-${formNum}-`);
+        container.insertBefore(form, buttonRow);
+        cleanForm(form);
+        $(`[name="item-${formNum}-part"]`).select2();
+        $(".select2.select2-container").last().addClass("form-control");
+        $(".form-group.col:first-child").last().addClass("w-50");
+        formNum++;
+        totalForms.setAttribute('value', `${formNum}`);
+        $("#remove-form").show();
+        $('[id$="-part"]').on('change', changeTotal);
+    }
+
+    function removeForm(e) {
+        e.preventDefault();
+
+        let itemForm = document.querySelectorAll(".item-form");
+        formNum--;
+        let lastForm = itemForm[formNum];
+        lastForm.remove();
+        totalForms.setAttribute('value', `${formNum}`);
+        if (formNum == 1) {
+            $("#remove-form").hide();
+        }
+    }
+
+    $('[id$="-part"]').on('change', changeTotal);
+    $('[id$="-part"]').on('change', removeAlert);
+    
+    function changeTotal() {
+        let value = $(this).val();
+        $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-total"]').children("select").prop('selectedIndex', value);
+    }
+    function removeAlert() {
+        if ($('.form-container.taking')) {
+            $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-quantity"]').children(".alert").remove();
+        }
+    }
+
+
+    $('#form-container').on('change', '[id$="-part"]:last', addMore);
+
+    function addMore(e) {
+        if ($(this).val()) {
+            addForm(e);
+        }
+    }
+  </script>
+  <style>
+    :root {
+      --alert-margin-top: -4px;
+      --alert-margin-bottom: -20px;
+    }
+    html, body{
+      height: 100%;
+    }
+    .form-control {
+      padding-bottom: 0;
+      padding-top: 0;
+      line-height: 26px;
+    }
+    .alert {
+      z-index: -1;
+      font-size: 13px;
+      margin-top: var(--alert-margin-top) !important;
+      margin-bottom: var(--alert-margin-bottom);
+    }
+    .row.item-form {
+      margin-bottom: calc(-1 * var(--alert-margin-bottom));
+    }
+    .select2-container .select2-selection--single .select2-selection__rendered {
+      padding-left: 0px;
+      padding-right: 8px;
+    }
+    .select2-container .select2-selection--single {
+      height: 26px;
+    }
+    .select2-container--default .select2-selection--single {
+      background-color: unset;
+      border: none;
+      line-height: 26px;
+    }
+    .form-group.col:not(:first-child) {
+      min-width: 150px;
+      max-width: 175px;
+    }
+    /*.form-group.col:first-child {
+      flex: 1 0 45%;
+    }*/
+    .select2.select2-container {
+      width: 50% !important;
+    }
+    .form-group .select2.select2-container {
+      width: 100% !important;
+    }
+    .button-row {
+      padding-top: 5px;
+    }
+    #id_entry-operation {
+      width: 25% !important;
+      display: inline-block;
+    }
+    .row {
+      flex-wrap: nowrap;
+    }
+  </style>
+{% endblock content %}

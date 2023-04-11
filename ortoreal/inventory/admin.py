@@ -1,6 +1,23 @@
 from django.contrib import admin
 
-from inventory.models import InventoryLog, Part, Item, Vendor, Product
+from inventory.models import InventoryLog, Part, Item, Vendor
+
+
+@admin.register(Part)
+class PartAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "vendor_code",
+        "name",
+        "price",
+        "quantity_total",
+        "quantity_c1",
+        "quantity_c2",
+        "units",
+        "vendor",
+        "note",
+    )
+    search_fields = ("vendor_code", "name")
 
 
 @admin.register(InventoryLog)
@@ -11,12 +28,12 @@ class InventoryLogAdmin(admin.ModelAdmin):
         "vendor_code",
         "name",
         "quantity",
-        "patient",
         "prosthetist",
         "date",
+        "comment",
     )
     list_display_links = ("id", "operation", "vendor_code", "name")
-    search_fields = ("vendor_code", "part")
+    search_fields = ("part__vendor_code", "part__name")
     autocomplete_fields = ("part",)
 
     def vendor_code(self, obj):
@@ -30,25 +47,11 @@ class InventoryLogAdmin(admin.ModelAdmin):
     name.short_description = "Название"
 
 
-@admin.register(Part)
-class PartAdmin(admin.ModelAdmin):
-    list_display = (
-        "vendor_code",
-        "name",
-        "price",
-        "quantity",
-        "units",
-        "vendor",
-        "note",
-    )
-    search_fields = ("vendor_code", "name")
-
-
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
-    list_display = ("id", "vendor_code", "name", "date_added")
+    list_display = ("id", "vendor_code", "name", "warehouse", "date_added")
     list_display_links = list_display
-    search_fields = ("vendor_code", "part")
+    search_fields = ("part__vendor_code", "part__name")
 
     def vendor_code(self, obj):
         return obj.part.vendor_code
@@ -64,8 +67,3 @@ class ItemAdmin(admin.ModelAdmin):
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
     list_display = ("name",)
-
-
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    list_display = ("name", "region", "price")
