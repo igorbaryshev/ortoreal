@@ -9,7 +9,10 @@
 {% block content %}
   <div class="card-body">
     {% include "includes/form_errors.html" %}
-    <form method="post" enctype="multipart/form-data" id="form-container">
+    <form method="post"
+          enctype="multipart/form-data"
+          id="form-container"
+          class="{% if adding %} adding {% elif taking %} taking {% endif %}">
       {% csrf_token %}
       {{ form.as_p }}
       <hr />
@@ -22,7 +25,13 @@
         <button id="remove-form" type="button" class="btn btn-danger">-</button>
         <button id="submit-form"
                 type="submit"
-                class="btn btn-primary position-absolute end-0">Добавить</button>
+                class="btn btn-primary position-absolute end-0">
+          {% if adding %}
+            Добавить
+          {% elif taking %}
+            Взять
+          {% endif %}
+        </button>
       </div>
     </form>
   </div>
@@ -86,8 +95,6 @@
             let lastForm = itemForm[formNum - 1];
             let select = lastForm.querySelector("select").value;
             let quantity = lastForm.querySelector("input").value;
-            console.log(!select);
-            console.log(!quantity);
             if (!select && quantity == "0") {
                 removeForm(e);
             }
@@ -138,11 +145,18 @@
     }
 
     $('[id$="-part"]').on('change', changeTotal);
+    $('[id$="-part"]').on('change', removeAlert);
     
     function changeTotal() {
         let value = $(this).val();
         $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-total"]').children("select").prop('selectedIndex', value);
     }
+    function removeAlert() {
+        if ($('.form-container.taking')) {
+            $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-quantity"]').children(".alert").remove();
+        }
+    }
+
 
     $('#form-container').on('change', '[id$="-part"]:last', addMore);
 

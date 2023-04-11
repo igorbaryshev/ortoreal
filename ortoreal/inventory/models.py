@@ -70,7 +70,7 @@ class Part(models.Model):
         verbose_name_plural = "Модели комплектующих"
 
     def __str__(self) -> str:
-        return f"{self.vendor_code} - {self.name}"
+        return f"{self.vendor_code} —— {self.name}"
 
 
 class Item(models.Model):
@@ -86,7 +86,7 @@ class Item(models.Model):
         blank=False,
         null=False,
     )
-    date_added = models.DateField("Дата", auto_now_add=True)
+    date_added = models.DateField("Дата", default=timezone.now)
     warehouse = models.CharField(
         "Склад", max_length=16, choices=Warehouse.choices
     )

@@ -31,6 +31,7 @@ def add_items(request):
             if quantity:
                 part = form.cleaned_data.get("part")
                 warehouse = form.cleaned_data.get("warehouse")
+                print(date)
                 batch_items += [
                     Item(part=part, warehouse=warehouse, date_added=date)
                     for _ in range(quantity)
@@ -81,15 +82,19 @@ def take_items(request):
             c2_quantity = int(part.quantity_c2)
             removed = 0
             if c2_quantity >= 1:
-                items = part.items.filter(warehouse="с2").values_list(
-                    "pk", flat=True
-                )[:quantity]
+                items = (
+                    part.items.filter(warehouse="с2")
+                    .order_by("date_added")
+                    .values_list("pk", flat=True)[:quantity]
+                )
                 removed = Item.objects.filter(id__in=items).delete()[0]
             c1_quantity = quantity - removed
             if c1_quantity <= int(part.quantity_c1):
-                items = part.items.filter(warehouse="с1").values_list(
-                    "pk", flat=True
-                )[:c1_quantity]
+                items = (
+                    part.items.filter(warehouse="с1")
+                    .order_by("date_added")
+                    .values_list("pk", flat=True)[:c1_quantity]
+                )
                 Item.objects.filter(id__in=items).delete()
 
             log = InventoryLog(
