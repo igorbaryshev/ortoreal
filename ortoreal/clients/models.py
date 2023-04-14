@@ -24,8 +24,7 @@ class Client(models.Model):
     phone = PhoneNumberField(
         _("Телефон"), null=False, blank=False, unique=True
     )
-
-    address = models.CharField(_("Адрес"), max_length=1000, blank=True)
+    address = models.TextField(_("Адрес"), max_length=1000, blank=True)
     region = models.CharField(
         "Регион",
         max_length=128,
@@ -37,7 +36,7 @@ class Client(models.Model):
     SNILS = models.BooleanField(_("СНИЛС"), default=False)
     IPR = models.BooleanField(_("ИПР"), default=False)
     SprMSE = models.BooleanField(_("СпрМСЭ"), default=False)
-    bank_detail = models.BooleanField(_("Реквизиты"), default=False)
+    bank_details = models.BooleanField(_("Реквизиты"), default=False)
     parts = models.BooleanField(_("Комплектующие"), default=False)
     contour = models.BooleanField(_("Контур"), default=False)
 
