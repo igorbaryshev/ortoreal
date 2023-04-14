@@ -7,8 +7,9 @@ from inventory.forms import (
     InventoryTakeForm,
     ItemAddFormSet,
     ItemTakeFormSet,
+    PartAddFormSet,
 )
-from inventory.models import Item, InventoryLog
+from inventory.models import Item, InventoryLog, Part
 
 
 @login_required
@@ -31,7 +32,6 @@ def add_items(request):
             if quantity:
                 part = form.cleaned_data.get("part")
                 warehouse = form.cleaned_data.get("warehouse")
-                print(date)
                 batch_items += [
                     Item(part=part, warehouse=warehouse, date_added=date)
                     for _ in range(quantity)
@@ -114,6 +114,28 @@ def take_items(request):
         "form": entry_form,
         "formset": item_formset,
         "taking": True,
+    }
+
+    return render(request, "inventory/add_items.html", context)
+
+
+@login_required
+def add_parts(request):
+    part_formset = PartAddFormSet(request.POST or None, prefix="item")
+
+    if (
+        request.method == "POST"
+        and part_formset.is_valid()
+    ):
+        for form in part_formset:
+            if form.is_valid():
+                form.save()
+
+        return redirect("/admin/inventory/")
+
+    context = {
+        "formset": part_formset,
+        "adding": True,
     }
 
     return render(request, "inventory/add_items.html", context)
