@@ -12,9 +12,7 @@ class DatePicker(forms.DateInput):
 class InventoryLogFormMeta:
     model = InventoryLog
     widgets = {
-        "date": DatePicker(
-            attrs={"value": timezone.now}, format="%Y-%m-%d"
-        )
+        "date": DatePicker(attrs={"value": timezone.now}, format="%Y-%m-%d")
     }
 
 
@@ -99,4 +97,17 @@ class ItemTakeForm(ItemForm):
 ItemTakeFormSet = forms.formset_factory(
     ItemTakeForm,
     extra=1,
+)
+
+
+class PartAddForm(forms.ModelForm):
+    class Meta:
+        model = Part
+        fields = ("vendor_code", "name", "units", "price", "vendor", "note")
+
+
+PartAddFormSet = forms.modelformset_factory(
+    model=Part,
+    extra=1,
+    exclude=("id",),
 )

@@ -1,0 +1,70 @@
+:root {
+    --alert-margin-top: -4px;
+    --alert-margin-bottom: -20px;
+}
+
+html, body {
+    height: 100%;
+}
+
+.alert {
+    z-index: -1;
+    font-size: 13px;
+    margin-top: var(--alert-margin-top) !important;
+    margin-bottom: var(--alert-margin-bottom);
+}
+
+.row.item-form {
+    margin-bottom: calc(-1 * var(--alert-margin-bottom));
+}
+
+.select2-container .select2-selection--single .select2-selection__rendered {
+    padding-left: 0px;
+    padding-right: 8px;
+}
+
+.select2-container .select2-selection--single {
+    height: 26px;
+}
+
+.select2-container--default .select2-selection--single {
+    background-color: unset;
+    border: none;
+    line-height: 26px;
+}
+
+.form-group.col:not(:first-child) {
+    min-width: 150px;
+    max-width: 175px;
+}
+
+/*.form-group.col:first-child {
+    flex: 1 0 45%;
+  }*/
+.select2.select2-container {
+    width: 50% !important;
+}
+
+.form-group .select2.select2-container {
+    width: 100% !important;
+}
+
+.button-row {
+    padding-top: 5px;
+}
+
+#id_entry-operation {
+    width: 25% !important;
+    display: inline-block;
+}
+
+.row {
+    flex-wrap: nowrap;
+}
+
+.form-control, .select2.select2-container.form-control {
+    padding-bottom: 0;
+    padding-top: 0;
+    line-height: 26px;
+    padding: none !important;
+}
