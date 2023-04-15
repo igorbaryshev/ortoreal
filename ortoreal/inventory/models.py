@@ -61,7 +61,7 @@ class Part(models.Model):
 
     @property
     def quantity_total(self):
-        return f"{self.items.count()}"
+        return f"{self.item.filter(warehouse__isnull=False).count()}"
 
     quantity_total.fget.short_description = "Кол-во"
 
@@ -75,8 +75,8 @@ class Part(models.Model):
 
 class Item(models.Model):
     class Warehouse(models.TextChoices):
-        C1 = "с1", _("C1")
-        C2 = "с2", _("C2")
+        S1 = "S1", _("Склад 1")
+        S2 = "S2", _("Склад 2")
 
     part = models.ForeignKey(
         Part,
@@ -88,7 +88,13 @@ class Item(models.Model):
     )
     date_added = models.DateField("Дата", default=timezone.now)
     warehouse = models.CharField(
-        "Склад", max_length=16, choices=Warehouse.choices
+        "Склад", max_length=16, choices=Warehouse.choices, null=True
+    )
+    client = models.ForeignKey(
+        Client, verbose_name="Клиент", on_delete=models.CASCADE, null=True
+    )
+    prosthetist = models.ForeignKey(
+        User, verbose_name="Протезист", on_delete=models.SET_NULL, null=True
     )
 
     class Meta:
@@ -99,29 +105,23 @@ class Item(models.Model):
         return self.part.__str__()
 
 
-# class Product(models.Model):
-#    class Region(models.TextChoices):
-#        MOSCOW = "Moscow", _("Москва")
-#        MOSCOW_REGION = "Moscow region", _("Московская область")
-#
-#    name = models.CharField("Название", max_length=1024)
-#    price = models.DecimalField("Цена", max_digits=11, decimal_places=2)
-#    parts = models.ManyToManyField(Item, verbose_name="Комплектующие")
-#    region = models.CharField("Регион", max_length=128, choices=Region.choices)
-#    patient = models.ForeignKey(
-#        Patient,
-#        verbose_name="Инвалид",
-#        on_delete=models.SET_NULL,
-#        blank=True,
-#        null=True,
-#    )
-#
-#    class Meta:
-#        verbose_name = "Модель протеза"
-#        verbose_name_plural = "Модели протезов"
-#
-#    def __str__(self) -> str:
-#        return self.name
+class ProsthesisModel(models.Model):
+    class Region(models.TextChoices):
+        MOSCOW = "Moscow", _("Москва")
+        MOSCOW_REGION = "Moscow region", _("Московская область")
+
+    name = models.CharField("Название", max_length=1024)
+    price = models.DecimalField("Цена", max_digits=11, decimal_places=2)
+    #    parts = models.ManyToManyField(Item, verbose_name="Комплектующие")
+    region = models.CharField("Регион", max_length=128, choices=Region.choices)
+
+    #
+    class Meta:
+        verbose_name = "Модель протеза"
+        verbose_name_plural = "Модели протезов"
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class InventoryLog(models.Model):
