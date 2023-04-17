@@ -1,0 +1,16 @@
+<tr class="text-center">
+  <th scope="col">{{ row.id }}</th>
+  <td><a class="vendor_code" href="{% url 'inventory:items' row.id %}">{{ row.vendor_code }}</a></td>
+  <td>{{ row.name }}</td>
+  <td>{{ row.price }}</td>
+  <td>{{ row.vendor }}</td>
+  <td>{{ row.note }}</td>
+  <td>{{ row.quantity_s1 }}</td>
+  <td>{{ row.quantity_s2 }}</td>
+  <td>{{ row.quantity_total }}</td>
+  <td>{{ row.get_units_display }}</td>
+  <td>
+    <a class="btn btn-secondary"
+       href="{% url 'admin:inventory_part_change' row.id %}">Изменить</a>
+  </td>
+</tr>

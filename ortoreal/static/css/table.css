@@ -1,0 +1,20 @@
+.table {
+    font-size: 13px;
+}
+.table > thead {
+    vertical-align: middle;
+}
+.btn {
+    font-size:13px;
+}
+.table > :not(caption) > * > * {
+    padding: .2rem;
+}
+
+td.comment {
+    width: 10%;
+}
+.vendor_code {
+    display: inline-block;
+    text-decoration: none;
+}

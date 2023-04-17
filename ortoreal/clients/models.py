@@ -69,6 +69,17 @@ class Contact(models.Model):
         help_text="Согласились или нет",
     )
 
+    @property
+    def full_name(self):
+        return f"{self.last_name} {self.first_name} {self.surname}"
+
+    def get_phone_display(self):
+        return self.phone.as_national.replace(" ", "")
+
+    @classmethod
+    def get_field_names(cls):
+        return [f.verbose_name for f in cls._meta.fields]
+
     class Meta:
         verbose_name = "Обращение"
         verbose_name_plural = "Обращения"

@@ -48,35 +48,39 @@ class Part(models.Model):
     note = models.CharField("Примечание", max_length=1024, blank=True)
 
     @property
-    def quantity_c1(self):
-        return f"{self.items.filter(warehouse=Item.Warehouse.C1).count()}"
+    def quantity_s1(self):
+        return f"{self.items.filter(warehouse='s1').count()}"
 
-    quantity_c1.fget.short_description = "Кол-во(С1)"
+    quantity_s1.fget.short_description = "Кол-во(С1)"
 
     @property
-    def quantity_c2(self):
-        return f"{self.items.filter(warehouse=Item.Warehouse.C2).count()}"
+    def quantity_s2(self):
+        return f"{self.items.filter(warehouse__exact='s2').count()}"
 
-    quantity_c2.fget.short_description = "Кол-во(С2)"
+    quantity_s2.fget.short_description = "Кол-во(С2)"
 
     @property
     def quantity_total(self):
-        return f"{self.item.filter(warehouse__isnull=False).count()}"
+        return f"{self.items.exclude(warehouse__exact='').count()}"
 
     quantity_total.fget.short_description = "Кол-во"
+
+    @classmethod
+    def get_field_names(cls):
+        return [f.verbose_name for f in cls._meta.fields if f.name != "units"]
 
     class Meta:
         verbose_name = "Модель комплектующего"
         verbose_name_plural = "Модели комплектующих"
 
     def __str__(self) -> str:
-        return f"{self.vendor_code} —— {self.name}"
+        return f"{self.vendor_code} - {self.name}"
 
 
 class Item(models.Model):
     class Warehouse(models.TextChoices):
-        S1 = "S1", _("Склад 1")
-        S2 = "S2", _("Склад 2")
+        S1 = "s1", _("Склад 1")
+        S2 = "s2", _("Склад 2")
 
     part = models.ForeignKey(
         Part,
@@ -96,6 +100,10 @@ class Item(models.Model):
     prosthetist = models.ForeignKey(
         User, verbose_name="Протезист", on_delete=models.SET_NULL, null=True
     )
+
+    @classmethod
+    def get_field_names(cls):
+        return [f.verbose_name for f in cls._meta.fields]
 
     class Meta:
         verbose_name = "Комплектующее на складе"

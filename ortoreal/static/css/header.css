@@ -1,0 +1,15 @@
+:root {
+    --orto-green: #40ac4b;
+}
+
+main {
+    padding-top: 58px;
+}
+
+.nav-link {
+    color: var(--orto-green);
+}
+
+.nav-link.active {
+    background-color: var(--orto-green) !important;
+}
