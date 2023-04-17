@@ -1,0 +1,18 @@
+<tr class="text-center">
+  <th scope="col">{{ row.id }}</th>
+  <td>{{ row.full_name }}</td>
+  <td>{{ row.get_how_contacted_display }}</td>
+  <td>{{ row.call_date|date:"d.m.Y" }}</td>
+  <td>{{ row.prosthetist }}</td>
+  <td>{{ row.get_phone_display }}</td>
+  <td>{{ row.address }}</td>
+  <td>{{ row.last_prosthesis_date }}</td>
+  <td>{{ row.call_result }}</td>
+  <td class="comment">{{ row.comment }}</td>
+  <td>{{ row.MTZ_date|date:"d.m.Y" }}</td>
+  <td>{{ row.get_result_display }}</td>
+  <td>
+    <a class="btn btn-secondary"
+       href="{% url 'admin:clients_contact_change' row.id %}">Изменить</a>
+  </td>
+</tr>

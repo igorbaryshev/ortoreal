@@ -1,6 +1,7 @@
 from django import forms
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 
 from inventory.forms import (
     InventoryAddForm,
@@ -10,6 +11,41 @@ from inventory.forms import (
     PartAddFormSet,
 )
 from inventory.models import Item, InventoryLog, Part
+
+
+def parts(request):
+    table_head = Part.get_field_names() + [
+        "Склад 1",
+        "Склад 2",
+        "Всего",
+        "Единицы",
+    ]
+    parts_list = Part.objects.prefetch_related("items")
+    paginator = Paginator(parts_list, 20)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+    context = {
+        "table_head": table_head,
+        "page_obj": page_obj,
+    }
+
+    return render(request, "inventory/parts.html", context)
+
+
+def items(request, pk):
+    part = get_object_or_404(Part, pk=pk)
+    items_list = part.items.order_by("id")
+    table_head = ["ID"] + Item.get_field_names()[2:]
+    paginator = Paginator(items_list, 20)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+    context = {
+        "part": part,
+        "table_head": table_head,
+        "page_obj": page_obj,
+    }
+
+    return render(request, "inventory/items.html", context)
 
 
 @login_required
@@ -123,10 +159,7 @@ def take_items(request):
 def add_parts(request):
     part_formset = PartAddFormSet(request.POST or None, prefix="item")
 
-    if (
-        request.method == "POST"
-        and part_formset.is_valid()
-    ):
+    if request.method == "POST" and part_formset.is_valid():
         for form in part_formset:
             if form.is_valid():
                 form.save()

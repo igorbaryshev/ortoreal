@@ -46,7 +46,6 @@ class ContactAdmin(admin.ModelAdmin):
     }
 
 
-
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
     form = ClientAdminForm

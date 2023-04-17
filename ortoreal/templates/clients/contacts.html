@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}
+  Обращения
+{% endblock title %}
+{% block static %}
+  <link rel="stylesheet" href="{% static "css/table.css" %}"/>
+{% endblock static %}
+
+{% block content %}
+  <div class="table-responsive">
+  <table class="table table-striped table-bordered align-middle">
+  {% include "includes/table_head.html" %}
+    <tbody>
+      {% for row in page_obj %}
+        {% include "./includes/contact_row.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "includes/paginator.html" %}
+{% endblock content %}
