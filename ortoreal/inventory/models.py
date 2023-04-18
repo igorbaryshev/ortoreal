@@ -3,7 +3,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
-from clients.models import Client
+from clients.models import Client, Order
 
 
 User = get_user_model()
@@ -100,6 +100,9 @@ class Item(models.Model):
     prosthetist = models.ForeignKey(
         User, verbose_name="Протезист", on_delete=models.SET_NULL, null=True
     )
+    order = models.ForeignKey(
+        Order, verbose_name="Заказ", on_delete=models.SET_NULL, null=True
+    )
 
     @classmethod
     def get_field_names(cls):
@@ -181,3 +184,17 @@ class InventoryLog(models.Model):
 
     def __str__(self):
         return f"{self.operation} {self.quantity} {self.part}"
+
+
+class Prosthesis(models.Model):
+    number = models.CharField("Номер изделия", max_length=150, unique=True)
+    kind = models.CharField("Вид", max_length=1024, blank=True)
+    name = models.CharField("Наименование", max_length=1024, blank=True)
+    price = models.DecimalField("Стоимость", max_digits=11, decimal_places=2)
+
+    class Meta:
+        verbose_name = "Протез"
+        verbose_name_plural = "Протезы"
+
+    def __str__(self) -> str:
+        return f"{self.number}"

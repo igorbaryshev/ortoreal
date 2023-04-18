@@ -3,8 +3,8 @@
   <td><a class="vendor_code" href="{% url 'inventory:items' row.id %}">{{ row.vendor_code }}</a></td>
   <td>{{ row.name }}</td>
   <td>{{ row.price }}</td>
-  <td>{{ row.vendor }}</td>
-  <td>{{ row.note }}</td>
+  <td>{{ row.vendor|default_if_none:"-" }}</td>
+  <td>{{ row.note|default:"-" }}</td>
   <td>{{ row.quantity_s1 }}</td>
   <td>{{ row.quantity_s2 }}</td>
   <td>{{ row.quantity_total }}</td>

@@ -197,7 +197,7 @@ class Comment(models.Model):
 
 class Status(models.Model):
     name = models.CharField(
-        "Статус", max_length=150, choices=StatusChoices.choices, blank=False
+        "Название", max_length=150, choices=StatusChoices.choices, blank=False
     )
     client = models.ForeignKey(
         Client,
@@ -209,3 +209,29 @@ class Status(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name}({self.date})"
+
+    class Meta:
+        verbose_name = "Статус"
+        verbose_name_plural = "Статусы"
+
+
+class Order(models.Model):
+    client = models.ForeignKey(
+        Client,
+        verbose_name="Клиент",
+        related_name="orders",
+        on_delete=models.CASCADE,
+    )
+    prosthetist = models.ForeignKey(
+        User,
+        verbose_name="Протезист",
+        related_name="jobs",
+        on_delete=models.SET_NULL,
+        null=True,
+    )
+    price = models.DecimalField("Цена", max_digits=11, decimal_places=2)
+    date = models.DateField("Дата заказа", default=timezone.now)
+
+    class Meta:
+        verbose_name = "Заказ"
+        verbose_name_plural = "Заказы"

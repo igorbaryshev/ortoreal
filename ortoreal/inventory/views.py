@@ -84,15 +84,16 @@ def add_items(request):
         InventoryLog.objects.bulk_create(batch_logs)
         Item.objects.bulk_create(batch_items)
 
-        return redirect("/admin/inventory/inventorylog/")
+        return redirect("admin:inventory_inventorylog_changelist")
 
     context = {
         "form": entry_form,
         "formset": item_formset,
         "adding": True,
     }
+    print(item_formset[0]['part'].name)
 
-    return render(request, "inventory/add_items.html", context)
+    return render(request, "inventory/form_table.html", context)
 
 
 @login_required

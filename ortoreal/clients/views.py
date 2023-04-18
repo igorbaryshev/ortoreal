@@ -38,4 +38,4 @@ def add_contact(request):
         "formset": formset,
     }
 
-    return render(request, "clients/contact.html", context)
+    return render(request, "clients/create_contact.html", context)

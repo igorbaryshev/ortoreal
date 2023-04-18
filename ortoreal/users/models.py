@@ -13,6 +13,10 @@ class User(AbstractUser):
     )
     is_prosthetist = models.BooleanField("Протезист", default=False)
 
+    @property
+    def initials(self):
+        return f"{self.last_name[0]}{self.first_name[0]}"
+
     class Meta:
         verbose_name = "Работник"
         verbose_name_plural = "Работники"

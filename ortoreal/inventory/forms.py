@@ -66,7 +66,7 @@ class ItemAddForm(ItemForm):
 
 ItemAddFormSet = forms.formset_factory(
     ItemAddForm,
-    extra=1,
+    extra=2,
 )
 
 

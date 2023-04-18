@@ -1,0 +1,12 @@
+<thead class="text-center">
+  <tr>
+    {% for field in form %}
+      <th scope="col"
+          class="justify-content-center {% if field.name == 'part' %}fixed-width{% endif %}"
+          {% if field.help_text %} title="{{ field.help_text|safe }}"{% endif %}>
+        {{ field.label }}
+        {% if field.field.required %}<span class="required text-danger">*</span>{% endif %}
+      </th>
+    {% endfor %}
+  </tr>
+</thead>
