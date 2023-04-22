@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}
+  {{ part }}
+{% endblock title %}
+{% block static %}
+  <link rel="stylesheet" href="{% static "css/table.css" %}"/>
+{% endblock static %}
+{% block content %}
+  {% load django_tables2 %}
+  <div class="card-body">
+    {% render_table table %}
+    <div class="d-flex justify-content-end">
+      {% if current %}
+      <form method="post">
+        {% csrf_token %}
+        <input class="btn btn-danger" type="submit" value="Закрыть заказ"/>
+      {% endif %}
+        <a class="btn btn-primary float-right"
+           href="{% url 'inventory:order' %}?_export=xlsx">Сохранить как .xlsx</a>
+      {% if current %}
+      </form>
+      {% endif %}
+    </div>
+  </div>
+{% endblock content %}

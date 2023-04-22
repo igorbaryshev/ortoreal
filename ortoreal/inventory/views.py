@@ -2,6 +2,11 @@ from django import forms
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Count, F, Window
+from django.db.models.functions import RowNumber
+
+import django_tables2 as tables
+from django_tables2.export.views import ExportMixin
 
 from inventory.forms import (
     InventoryAddForm,
@@ -10,7 +15,8 @@ from inventory.forms import (
     ItemTakeFormSet,
     PartAddFormSet,
 )
-from inventory.models import Item, InventoryLog, Part
+from inventory.models import Item, InventoryLog, Part, Order
+from inventory.tables import OrderTable
 
 
 def parts(request):
@@ -91,7 +97,7 @@ def add_items(request):
         "formset": item_formset,
         "adding": True,
     }
-    print(item_formset[0]['part'].name)
+    print(item_formset[0]["part"].name)
 
     return render(request, "inventory/form_table.html", context)
 
@@ -173,3 +179,80 @@ def add_parts(request):
     }
 
     return render(request, "inventory/add_items.html", context)
+
+
+@login_required
+def order(request, pk=None):
+    queryset = Order.objects.get(current=True)
+
+    if pk:
+        queryset = get_object_or_404(Order, pk=pk)
+
+    table_queryset = (
+        queryset.items.values(
+            "part__vendor_code", "part__price", "part__vendor"
+        )
+        .annotate(
+            row=Window(RowNumber()),
+            vendor_code=F("part__vendor_code"),
+            price=F("part__price"),
+            quantity=Count("vendor_code"),
+            vendor=F("part__vendor__name"),
+            price_mul=F("quantity") * F("price"),
+        )
+        .order_by("vendor_code")
+    )
+    table = OrderTable(table_queryset)
+    context = {
+        "table": table,
+    }
+
+    return render(request, "inventory/order.html", context)
+
+
+class OrderView(ExportMixin, tables.SingleTableView):
+    table_class = OrderTable
+    template_name = "inventory/order.html"
+
+    @property
+    def is_current(self):
+        if self.kwargs.get("pk"):
+            return False
+        return True
+
+    def get_order(self):
+        if self.is_current:
+            return get_object_or_404(Order, current=True)
+        return get_object_or_404(Order, pk=self.kwargs.get("pk"))
+
+    def post(self, request):
+        if self.is_current:
+            order = get_object_or_404(Order, current=True)
+            order.current = False
+            order.save()
+            Order.objects.create()
+            return redirect("inventory:order_by_id", pk=order.pk)
+
+    def get_queryset(self):
+        order = self.get_order()
+
+        queryset = (
+            order.items.values(
+                "part__vendor_code", "part__price", "part__vendor"
+            )
+            .annotate(
+                row=Window(RowNumber()),
+                vendor_code=F("part__vendor_code"),
+                price=F("part__price"),
+                quantity=Count("vendor_code"),
+                vendor=F("part__vendor__name"),
+                price_mul=F("quantity") * F("price"),
+            )
+            .order_by("vendor_code")
+        )
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["current"] = self.is_current
+        return context

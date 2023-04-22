@@ -3,10 +3,18 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
-from clients.models import Client, Order
-
+from clients.models import Client, Job
 
 User = get_user_model()
+
+
+class Order(models.Model):
+    current = models.BooleanField("Текущий", default=True)
+    date = models.DateTimeField("Дата", default=timezone.now)
+
+    class Meta:
+        verbose_name = "Заказ"
+        verbose_name_plural = "Заказы"
 
 
 class Vendor(models.Model):
@@ -94,14 +102,19 @@ class Item(models.Model):
     warehouse = models.CharField(
         "Склад", max_length=16, choices=Warehouse.choices, null=True
     )
-    client = models.ForeignKey(
-        Client, verbose_name="Клиент", on_delete=models.CASCADE, null=True
-    )
-    prosthetist = models.ForeignKey(
-        User, verbose_name="Протезист", on_delete=models.SET_NULL, null=True
+    job = models.ForeignKey(
+        Job,
+        verbose_name="Работа",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="items",
     )
     order = models.ForeignKey(
-        Order, verbose_name="Заказ", on_delete=models.SET_NULL, null=True
+        Order,
+        verbose_name="Заказ",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="items",
     )
 
     @classmethod

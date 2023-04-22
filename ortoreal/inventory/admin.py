@@ -1,6 +1,29 @@
 from django.contrib import admin
+from django.db.models import Sum
 
-from inventory.models import InventoryLog, Part, Item, Vendor
+from inventory.models import InventoryLog, Part, Item, Vendor, Order
+from inventory.utils import dec2pre
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ("current", "date", "item_count", "price")
+
+    def item_count(self, obj):
+        return obj.items.count()
+
+    item_count.short_description = "Кол-во"
+
+    def price(self, obj):
+        return f"""{dec2pre(
+            obj.items.aggregate(Sum("part__price"))["part__price__sum"]
+        ):,}""".replace(
+            ",", " "
+        ).replace(
+            ".", ","
+        )
+
+    price.short_description = "Всего, руб."
 
 
 @admin.register(Part)
