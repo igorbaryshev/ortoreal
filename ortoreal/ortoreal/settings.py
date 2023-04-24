@@ -154,7 +154,7 @@ PHONENUMBER_DEFAULT_REGION = "RU"
 PHONENUMBER_DEFAULT_FORMAT = "INTERNATIONAL"
 
 DJANGO_TABLES2_TABLE_ATTRS = {
-    'class': 'table table-hover',
+    'class': 'table table-hover table-bordered',
     'thead': {
         'class': 'table-light',
     },

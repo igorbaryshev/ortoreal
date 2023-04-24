@@ -16,11 +16,10 @@ TD_CENTER = {
 }
 
 
-class OrderTable(tables.Table):
+class VendorOrderTable(tables.Table):
     row = tables.Column("№", empty_values=())
     vendor_code = tables.Column("Артикул")
     quantity = tables.Column("Количество")
-    vendor = tables.Column("Производитель")
     price = tables.Column("Цена, руб.", attrs=TD_END, footer="Всего:")
     price_mul = tables.Column(
         "Всего, руб.",
@@ -46,3 +45,17 @@ class OrderTable(tables.Table):
                 "class": "text-end",
             },
         }
+
+
+class OrderTable(VendorOrderTable):
+    vendor = tables.Column("Производитель")
+
+    class Meta(VendorOrderTable.Meta):
+        sequence = (
+            "row",
+            "vendor_code",
+            "quantity",
+            "vendor",
+            "price",
+            "price_mul",
+        )

@@ -1,12 +1,17 @@
+import io
+import urllib
+from django.http.response import HttpResponse
 from django import forms
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Window
 from django.db.models.functions import RowNumber
+from django.utils import timezone
 
 import django_tables2 as tables
 from django_tables2.export.views import ExportMixin
+from xlsxwriter.workbook import Workbook
 
 from inventory.forms import (
     InventoryAddForm,
@@ -16,7 +21,8 @@ from inventory.forms import (
     PartAddFormSet,
 )
 from inventory.models import Item, InventoryLog, Part, Order
-from inventory.tables import OrderTable
+from inventory.tables import OrderTable, VendorOrderTable
+from inventory.utils import generate_zip
 
 
 def parts(request):
@@ -256,3 +262,46 @@ class OrderView(ExportMixin, tables.SingleTableView):
         context = super().get_context_data(**kwargs)
         context["current"] = self.is_current
         return context
+
+
+def export_orders(request):
+    queryset = Order.objects.get(current=True)
+    vendors = queryset.items.values_list(
+        "part__vendor__id", "part__vendor__name"
+    ).distinct()
+    table_queryset = (
+        queryset.items.values("part__vendor_code", "part__price")
+        .annotate(
+            row=Window(RowNumber()),
+            vendor_code=F("part__vendor_code"),
+            price=F("part__price"),
+            quantity=Count("vendor_code"),
+            price_mul=F("quantity") * F("price"),
+        )
+        .order_by("vendor_code")
+    )
+    files = []
+    for vendor in vendors:
+        vendor_queryset = table_queryset.filter(part__vendor_id=vendor[0])
+        table = VendorOrderTable(vendor_queryset)
+        output = io.BytesIO()
+        workbook = Workbook(output, {"in_memory": True})
+        worksheet = workbook.add_worksheet()
+        for i, row in enumerate(table.as_values()):
+            for j, value in enumerate(row):
+                worksheet.write(i, j, value)
+        worksheet.autofit()
+        workbook.close()
+        table_file = output.getvalue()
+        output.close()
+        files.append((vendor[1] + ".xlsx", table_file))
+
+    current_date = timezone.now().strftime("%Y-%m-%d_%H-%M")
+    zip_name = urllib.parse.quote(f"Заказ_{current_date}")
+    response = HttpResponse(generate_zip(files))
+    response["Content-Type"] = "application/x-zip-compressed"
+    response[
+        "Content-Disposition"
+    ] = f"attachment; filename*=UTF-8''{zip_name}.zip"
+
+    return response

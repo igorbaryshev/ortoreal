@@ -10,17 +10,21 @@
   {% load django_tables2 %}
   <div class="card-body">
     {% render_table table %}
-    <div class="d-flex justify-content-end">
-      {% if current %}
-      <form method="post">
+    {% if current %}
+      <form method="post" class="d-flex justify-content-around">
         {% csrf_token %}
         <input class="btn btn-danger" type="submit" value="Закрыть заказ"/>
-      {% endif %}
+      {% else %}
+        <div class="d-flex justify-content-around">
+        {% endif %}
         <a class="btn btn-primary float-right"
-           href="{% url 'inventory:order' %}?_export=xlsx">Сохранить как .xlsx</a>
-      {% if current %}
-      </form>
-      {% endif %}
-    </div>
+           href="{% url 'inventory:export_order' %}">Как .zip по поставщикам</a>
+        <a class="btn btn-primary float-right"
+           href="{% url 'inventory:order' %}?_export=xlsx">Как .xlsx</a>
+        {% if current %}
+        </form>
+      {% else %}
+      </div>
+    {% endif %}
   </div>
 {% endblock content %}

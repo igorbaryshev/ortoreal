@@ -78,8 +78,8 @@ class Part(models.Model):
         return [f.verbose_name for f in cls._meta.fields if f.name != "units"]
 
     class Meta:
-        verbose_name = "Модель комплектующего"
-        verbose_name_plural = "Модели комплектующих"
+        verbose_name = "модель комплектующего"
+        verbose_name_plural = "Номенклатура"
 
     def __str__(self) -> str:
         return f"{self.vendor_code} - {self.name}"
@@ -100,7 +100,7 @@ class Item(models.Model):
     )
     date_added = models.DateField("Дата", default=timezone.now)
     warehouse = models.CharField(
-        "Склад", max_length=16, choices=Warehouse.choices, null=True
+        "Склад", max_length=16, choices=Warehouse.choices, blank=True
     )
     job = models.ForeignKey(
         Job,

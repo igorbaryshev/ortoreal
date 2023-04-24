@@ -12,4 +12,5 @@ urlpatterns = [
     path("add_part/", views.add_parts, name="add_parts"),
     path("order/", views.OrderView.as_view(), name="order"),
     path("order/<int:pk>/", views.OrderView.as_view(), name="order_by_id"),
+    path("order/download/", views.export_orders, name="export_order"),
 ]
