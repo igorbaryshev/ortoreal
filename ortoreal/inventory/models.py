@@ -3,10 +3,18 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
-from clients.models import Client
-
+from clients.models import Client, Job
 
 User = get_user_model()
+
+
+class Order(models.Model):
+    current = models.BooleanField("Текущий", default=True)
+    date = models.DateTimeField("Дата", default=timezone.now)
+
+    class Meta:
+        verbose_name = "Заказ"
+        verbose_name_plural = "Заказы"
 
 
 class Vendor(models.Model):
@@ -70,8 +78,8 @@ class Part(models.Model):
         return [f.verbose_name for f in cls._meta.fields if f.name != "units"]
 
     class Meta:
-        verbose_name = "Модель комплектующего"
-        verbose_name_plural = "Модели комплектующих"
+        verbose_name = "модель комплектующего"
+        verbose_name_plural = "Номенклатура"
 
     def __str__(self) -> str:
         return f"{self.vendor_code} - {self.name}"
@@ -92,13 +100,21 @@ class Item(models.Model):
     )
     date_added = models.DateField("Дата", default=timezone.now)
     warehouse = models.CharField(
-        "Склад", max_length=16, choices=Warehouse.choices, null=True
+        "Склад", max_length=16, choices=Warehouse.choices, blank=True
     )
-    client = models.ForeignKey(
-        Client, verbose_name="Клиент", on_delete=models.CASCADE, null=True
+    job = models.ForeignKey(
+        Job,
+        verbose_name="Работа",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="items",
     )
-    prosthetist = models.ForeignKey(
-        User, verbose_name="Протезист", on_delete=models.SET_NULL, null=True
+    order = models.ForeignKey(
+        Order,
+        verbose_name="Заказ",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="items",
     )
 
     @classmethod
@@ -181,3 +197,17 @@ class InventoryLog(models.Model):
 
     def __str__(self):
         return f"{self.operation} {self.quantity} {self.part}"
+
+
+class Prosthesis(models.Model):
+    number = models.CharField("Номер изделия", max_length=150, unique=True)
+    kind = models.CharField("Вид", max_length=1024, blank=True)
+    name = models.CharField("Наименование", max_length=1024, blank=True)
+    price = models.DecimalField("Стоимость", max_digits=11, decimal_places=2)
+
+    class Meta:
+        verbose_name = "Протез"
+        verbose_name_plural = "Протезы"
+
+    def __str__(self) -> str:
+        return f"{self.number}"

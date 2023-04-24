@@ -20,15 +20,9 @@ class ClientAdminForm(ModelForm):
 
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
-    form = ClientAdminForm
-
     list_display = (
         "full_name",
-        "how_contacted",
         "call_date",
-        "prosthetist",
-        "phone",
-        "address",
         "last_prosthesis_date",
         "call_result",
         "comment",
@@ -59,7 +53,6 @@ class ClientAdmin(admin.ModelAdmin):
         "how_contacted",
         "prosthetist",
         "region",
-        "cost",
         "admin_status_display",
         "passport",
         "IPR",

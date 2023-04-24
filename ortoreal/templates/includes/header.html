@@ -29,6 +29,12 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="nav nav-pills ms-auto">
             <li class="nav-item">
+              <a class="nav-link {% if view_name == 'inventory:order' %}active{% endif %}"
+                 href="{% url 'inventory:order' %}">
+                Текущий заказ
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link {% if view_name == 'clients:contacts' %}active{% endif %}"
                  href="{% url 'clients:contacts' %}">
                 Обращения

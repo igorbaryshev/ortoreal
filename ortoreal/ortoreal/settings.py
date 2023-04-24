@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'phonenumber_field',
+    'django_tables2',
+    'tablib',
     'core.apps.CoreConfig',
     'users.apps.UsersConfig',
     'inventory.apps.InventoryConfig',
@@ -150,3 +152,10 @@ SELECT2_CACHE_BACKEND = 'select2'
 
 PHONENUMBER_DEFAULT_REGION = "RU"
 PHONENUMBER_DEFAULT_FORMAT = "INTERNATIONAL"
+
+DJANGO_TABLES2_TABLE_ATTRS = {
+    'class': 'table table-hover table-bordered',
+    'thead': {
+        'class': 'table-light',
+    },
+}

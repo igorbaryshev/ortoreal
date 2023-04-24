@@ -1,28 +1,20 @@
 {% load user_filters %}
-
 {% for field in form %}
   <div class="form-group col"
-    {% if field.field.required %} 
-      aria-required="true"
-    {% endif %}>
-  {% if forloop.parentloop.first %}
-    <label for="{{ field.id_for_label }}">
-      {{ field.label }}
-      {% if field.field.required %}
-        <span class="required text-danger">*</span>
-      {% endif %}
-    </label>
-  {% endif %}
-    {{ field|addclass:'form-control' }}
-    {% if field.help_text %}
-      <small id="{{ field.id_for_label }}-help" class="form-text text-muted">
-        {{ field.help_text|safe }}
-      </small>
+       {% if field.field.required %} aria-required="true"{% endif %}>
+    {% if forloop.parentloop.first %}
+      <label for="{{ field.id_for_label }}"
+             {% if field.help_text %} title="{{ field.help_text|safe }}"{% endif %}>
+        {{ field.label }}
+        {% if field.field.required %}<span class="required text-danger">*</span>{% endif %}
+      </label>
     {% endif %}
-    {% for error in field.errors %}     
-      <div class="alert alert-danger p-0 text-center">
-        {{ error|escape }}
-      </div>
-    {% endfor %}
+    {{ field|addclass:'form-control' }}
+    {% comment %}
+    {% if field.help_text %}
+      <small id="{{ field.id_for_label }}-help" class="form-text text-muted">{{ field.help_text|safe }}</small>
+    {% endif %}
+    {% endcomment %}
+    {% for error in field.errors %}<div class="alert alert-danger p-0 text-center">{{ error|escape }}</div>{% endfor %}
   </div>
 {% endfor %}
