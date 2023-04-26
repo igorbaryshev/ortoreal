@@ -1,45 +1,36 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}
-  {% if adding %}
-    Добавить
-  {% elif taking %}
-    Взять
-  {% elif returning %}
-    Возврат
-  {% endif %}
+  Приход
 {% endblock title %}
 {% block content %}
   <div class="card-body">
-    {% include "includes/form_errors.html" %}
     <form method="post"
           enctype="multipart/form-data"
           id="form-container"
-          class="{% if adding %} adding {% elif taking %} taking {% endif %}">
+          class=" adding">
       {% csrf_token %}
       {{ form.as_p }}
-      <hr />
       {{ formset.management_form }}
-      {% for item_form in formset %}
-        <div class="row item-form">{% include "includes/form_fields.html" with form=item_form %}</div>
-      {% endfor %}
-      <div class="button-row position-relative">
-        <button id="add-form" type="button" class="btn btn-secondary">+</button>
-        <button id="remove-form" type="button" class="btn btn-danger">-</button>
-        <button id="submit-form"
-                type="submit"
-                class="btn btn-primary position-absolute end-0">
-          {% if adding %}
-            Добавить
-          {% elif taking %}
-            Взять
-          {% endif %}
-        </button>
+      <div class="table-responsive">
+        <link rel="stylesheet" href="{% static "css/form_table.css" %}"/>
+        <table class="table table-bordered align-middle">
+          {% include "includes/form_table_head.html" with form=formset.0 %}
+          {% for item_form in formset %}
+            {% include "./includes/form_item_row.html" with form=item_form %}
+          {% endfor %}
+        </table>
+        <div class="button-row position-relative">
+          <button id="add-form" type="button" class="btn btn-secondary">+</button>
+          <button id="remove-form" type="button" class="btn btn-danger">-</button>
+          <button id="submit-form"
+                  type="submit"
+                  class="btn btn-primary position-absolute end-0">
+              Добавить
+          </button>
+        </div>
       </div>
     </form>
   </div>
-  <script src="{% static 'js/form_temp.js' %}"></script>
-  {% comment %}
-  <style src="{% static 'css/form.css' %}"></style>
-  {% endcomment %}
+  <script src="{% static 'js/form_select2.js' %}"></script>
 {% endblock content %}

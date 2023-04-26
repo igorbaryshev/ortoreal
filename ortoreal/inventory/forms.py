@@ -1,15 +1,24 @@
 from django import forms
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from inventory.models import InventoryLog, Item, Part
+from clients.models import Client, Job
 
 
 class DatePicker(forms.DateInput):
+    """
+    Выбор даты.
+    """
+
     input_type = "date"
 
 
 class InventoryLogFormMeta:
+    """
+    Мета формы записи в логе
+    """
+
     model = InventoryLog
     widgets = {
         "date": DatePicker(attrs={"value": timezone.now}, format="%Y-%m-%d")
@@ -17,35 +26,52 @@ class InventoryLogFormMeta:
 
 
 class InventoryAddForm(forms.ModelForm):
-    operation = forms.ChoiceField(
-        label="Операция",
-        choices=InventoryLog.PartialLogAction.choices,
-    )
+    """
+    Форма лога прихода.
+    """
 
     class Meta(InventoryLogFormMeta):
         fields = (
-            "operation",
             "date",
             "comment",
         )
 
 
 class InventoryTakeForm(forms.ModelForm):
+    """
+    Форма лога расхода/возврата.
+    """
+
+    operation = forms.ChoiceField(
+        label="Операция",
+        choices=InventoryLog.PartialLogAction.choices,
+        widget=forms.Select(attrs={"onchange": "this.form.submit()"}),
+    )
+    client = forms.ModelChoiceField(
+        label="Клиент",
+        queryset=Job.objects.none(),
+        widget=forms.Select(attrs={"onchange": "this.form.submit()"}),
+    )
+
     class Meta(InventoryLogFormMeta):
         fields = (
-            "prosthetist",
+            "operation",
             "client",
             "date",
             "comment",
         )
+        widgets = {"comment": forms.TextInput(attrs={"size": 80})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["prosthetist"].empty_label = "---выбрать---"
         self.fields["client"].empty_label = "---выбрать---"
 
 
 class ItemForm(forms.ModelForm):
+    """
+    Базовая форма комплектующего на складе.
+    """
+
     quantity = forms.IntegerField(
         label="Кол-во",
         required=True,
@@ -55,10 +81,16 @@ class ItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["part"].empty_label = "---выбрать---"
+        part_field = self.fields["part"]
+        part_field.empty_label = "---выбрать---"
+        part_field.queryset = part_field.queryset.order_by("vendor_code")
 
 
 class ItemAddForm(ItemForm):
+    """
+    Форма добавления/возврата комплектующего на склад.
+    """
+
     class Meta:
         model = Item
         fields = ("part", "warehouse", "quantity")
@@ -71,7 +103,13 @@ ItemAddFormSet = forms.formset_factory(
 
 
 class ItemTakeForm(ItemForm):
-    queryset = Part.objects.order_by("id").annotate(total=Count("items"))
+    """
+    Форма расхода комплектующего.
+    """
+
+    queryset = Part.objects.order_by("vendor_code").annotate(
+        total=Count("items", filter=Q(items__warehouse__in=["s1", "s2"]))
+    )
 
     total = forms.ModelChoiceField(
         label="Наличие",
@@ -111,3 +149,18 @@ PartAddFormSet = forms.modelformset_factory(
     extra=1,
     exclude=("id",),
 )
+
+
+class ItemReturnForm(forms.ModelForm):
+    return_item = forms.BooleanField(label="Вернуть")
+    # part = forms.CharField(
+    #     label="Артикул",
+    #     widget=forms.TextInput(
+    #         attrs={"readonly": "readonly", "class": "form-control-plaintext"}
+    #     ),
+    # )
+    quantity = forms.IntegerField(label="Количество", initial=0)
+
+    class Meta:
+        model = Item
+        fields = ('return_item', 'part', 'quantity')

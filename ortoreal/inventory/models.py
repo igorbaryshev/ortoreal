@@ -113,6 +113,7 @@ class Item(models.Model):
         Order,
         verbose_name="Заказ",
         on_delete=models.SET_NULL,
+        blank=True,
         null=True,
         related_name="items",
     )
@@ -151,14 +152,14 @@ class ProsthesisModel(models.Model):
 class InventoryLog(models.Model):
     class PartialLogAction(models.TextChoices):
         EMPTY = "", _("---выбрать---")
-        RECEIVED = "RECEIVED", _("Приход")
         RETURNED = "RETURNED", _("Возврат")
+        TOOK = "TOOK", _("Расход")
 
     class LogAction(models.TextChoices):
         EMPTY = "", _("---выбрать---")
         RECEIVED = "RECEIVED", _("Приход")
-        RETURNED = "RETURNED", _("Вернул")
-        TOOK = "TOOK", _("Взял")
+        RETURNED = "RETURNED", _("Возврат")
+        TOOK = "TOOK", _("Расход")
 
     operation = models.CharField(
         "Операция", max_length=32, choices=LogAction.choices
@@ -183,8 +184,8 @@ class InventoryLog(models.Model):
         null=True,
         related_name="+",
     )
-    client = models.ForeignKey(
-        Client,
+    job = models.ForeignKey(
+        Job,
         verbose_name="Клиент",
         on_delete=models.CASCADE,
         blank=True,

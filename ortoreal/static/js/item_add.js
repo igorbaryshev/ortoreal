@@ -1,21 +1,23 @@
-let container = document.querySelector("tbody");
+let container = document.querySelector("#form-container");
 let addButton = document.querySelector("#add-form");
 let removeButton = document.querySelector("#remove-form");
 let totalForms = document.querySelector("#id_item-TOTAL_FORMS");
 let buttonRow = document.querySelector(".button-row");
 let submitButton = document.querySelector("#submit-form");
 
-var form = document.querySelectorAll(".input-row");
-var formNum = form.length;
+
+var itemForm = document.querySelectorAll(".item-form");
+var formNum = itemForm.length;
 if (formNum == 1) {
   $("#remove-form").hide();
 }
 
-var firstForm = form[0].cloneNode(true);
+var firstForm = itemForm[0].cloneNode(true);
 
 function cleanForm(form) {
-    form.querySelectorAll("td").forEach(field => {
-        field.classList.remove("alert-td");
+    alerts = form.querySelectorAll(".alert")
+    alerts.forEach(alert => {
+        alert.remove();
     });
     if (form.querySelector('[name$="-warehouse"]')) {
         form.querySelector('[name$="-warehouse"]').value = "";
@@ -39,8 +41,12 @@ $(document).ready(function() {
     });
     $('[id$="-part"').each(function() {
         $(this).select2({
+            theme: 'bootstrap-5'
         });
     });
+    /*$(".select2.select2-container").each(function() {
+        $(this).addClass("form-control");
+    });*/
     $(".form-group.col:first-child").each(function() {
       $(this).addClass("w-50");
     });
@@ -54,8 +60,8 @@ submitButton.addEventListener('click', removeLastEmpty);
 function removeLastEmpty(e) {
     e.preventDefault();
     if (formNum > 1) {
-        let form = document.querySelectorAll(".input-row");
-        let lastForm = form[formNum - 1];
+        let itemForm = document.querySelectorAll(".item-form");
+        let lastForm = itemForm[formNum - 1];
         let select = lastForm.querySelector("select").value;
         let quantity = lastForm.querySelector("input").value;
         if (!select && quantity == "0") {
@@ -83,10 +89,13 @@ function addForm(e) {
     });
 
     form.innerHTML = form.innerHTML.replace(formRegex, `item-${formNum}-`);
-    document.querySelector("#form-container tbody").append(form);
+    container.insertBefore(form, buttonRow);
     cleanForm(form);
-    $(`[name="item-${formNum}-part"]`).select2();
+    $(`[name="item-${formNum}-part"]`).select2({
+        theme: 'bootstrap-5'
+    });
     /*$(".select2.select2-container").last().addClass("form-control");*/
+    $(".form-group.col:first-child").last().addClass("w-50");
     formNum++;
     totalForms.setAttribute('value', `${formNum}`);
     $("#remove-form").show();
@@ -96,12 +105,9 @@ function addForm(e) {
 function removeForm(e) {
     e.preventDefault();
 
-    let lastForm = $(".input-row").last();
+    let itemForm = document.querySelectorAll(".item-form");
     formNum--;
-    nextSib = lastForm.next();
-    if (nextSib && nextSib.children(".alert-row")){
-        nextSib.remove();
-    }
+    let lastForm = itemForm[formNum];
     lastForm.remove();
     totalForms.setAttribute('value', `${formNum}`);
     if (formNum == 1) {
@@ -113,8 +119,8 @@ $('[id$="-part"]').on('change', changeTotal);
 $('[id$="-part"]').on('change', removeAlert);
 
 function changeTotal() {
-    let value = $(this).val();
-    $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-total"]').children("select").prop('selectedIndex', value);
+    let index = $(this).prop("selectedIndex");
+    $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-total"]').children("select").prop('selectedIndex', index);
 }
 function removeAlert() {
     if ($('.form-container.taking')) {

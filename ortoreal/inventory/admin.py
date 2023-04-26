@@ -1,7 +1,14 @@
 from django.contrib import admin
 from django.db.models import Sum
 
-from inventory.models import InventoryLog, Part, Item, Vendor, Order
+from inventory.models import (
+    InventoryLog,
+    Part,
+    Item,
+    Vendor,
+    Order,
+    Prosthesis,
+)
 from inventory.utils import dec2pre
 
 
@@ -90,3 +97,8 @@ class ItemAdmin(admin.ModelAdmin):
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
     list_display = ("name",)
+
+
+@admin.register(Prosthesis)
+class ProsthesisAdmin(admin.ModelAdmin):
+    list_display = ("number", "kind", "name", "price")

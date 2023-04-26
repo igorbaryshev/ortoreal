@@ -1,0 +1,19 @@
+<tr class="input-row">
+  {% for field in form %}
+    <td class="item-form {% if field.errors %}alert-td{% endif %}"
+        title="{% for error in field.errors %}{{ error }}{% if not forloop.last %}&#10;&#013;{% endif %}{% endfor %}">
+      {{ field }}
+    </td>
+  {% endfor %}
+</tr>
+{% comment %}
+{% if form.errors %}
+  <tr class="alert-row">
+    {% for field in form %}
+      <td>
+        {% for error in field.errors %}<div class="alert alert-danger p-0 text-center">{{ error|escape }}</div>{% endfor %}
+      </td>
+    {% endfor %}
+  </tr>
+{% endif %}
+{% endcomment %}

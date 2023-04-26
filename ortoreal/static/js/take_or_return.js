@@ -31,12 +31,12 @@ function cleanForm(form) {
 
 $(document).ready(function() {
     /*$("#id_entry-operation").addClass("form-control");*/
-    $("#id_entry-prosthetist").select2({
+    /*$("#id_entry-prosthetist").select2({
         theme: 'bootstrap-5'
     });
     $("#id_entry-client").select2({
         theme: 'bootstrap-5'
-    });
+    });*/
     $('[id$="-part"').each(function() {
         $(this).select2({
         });
@@ -63,12 +63,8 @@ function removeLastEmpty(e) {
         }
     }
     let form_container = document.querySelector("#form-container");
-    if (form_container.checkValidity()) {
-        form_container.submit();
-    }
-    else {
-        form_container.reportValidity();
-    }
+    form_container.submit();
+    
 }
 
 function addForm(e) {
@@ -113,13 +109,11 @@ $('[id$="-part"]').on('change', changeTotal);
 $('[id$="-part"]').on('change', removeAlert);
 
 function changeTotal() {
-    let value = $(this).val();
-    $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-total"]').children("select").prop('selectedIndex', value);
+    let index = $(this).prop("selectedIndex");
+    $(this).closest(".input-row").children("td").has('[id$="-total"]').children("select").prop('selectedIndex', index);
 }
 function removeAlert() {
-    if ($('.form-container.taking')) {
-        $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-quantity"]').children(".alert").remove();
-    }
+    $(this).closest(".input-row").children("td").removeClass("alert-td");
 }
 
 
