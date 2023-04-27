@@ -37,14 +37,13 @@ $(document).ready(function() {
     $("#id_entry-client").select2({
         theme: 'bootstrap-5'
     });*/
-    $('[id$="-part"').each(function() {
-        $(this).select2({
+    if ($("#id_entry-operation").val() == "TOOK") {
+        $('[id$="-part"').each(function() {
+            $(this).select2({
+            });
         });
-    });
-    $(".form-group.col:first-child").each(function() {
-      $(this).addClass("w-50");
-    });
-    $('[id$="-part"]').each(changeTotal);
+        $('[id$="-part"]').each(changeTotal);
+    }
 });
 
 addButton.addEventListener('click', addForm);
@@ -105,13 +104,22 @@ function removeForm(e) {
     }
 }
 
-$('[id$="-part"]').on('change', changeTotal);
-$('[id$="-part"]').on('change', removeAlert);
+let partSelect = $('[id$="-part"]');
+
+partSelect.on('change', changeTotal);
+partSelect.on('change', removeAlert);
 
 function changeTotal() {
     let index = $(this).prop("selectedIndex");
-    $(this).closest(".input-row").children("td").has('[id$="-total"]').children("select").prop('selectedIndex', index);
+    let select = $(this).closest(".input-row").children("td").has('[id$="-total"]').find("select");
+    select.prop('selectedIndex', index);
+    let value = select.val();
+    console.log(value);
+    let input = $(this).closest(".input-row").children("td").has('[id$="-quantity"]').find("input")
+    input.attr("max", value);
+    input.val(0);
 }
+
 function removeAlert() {
     $(this).closest(".input-row").children("td").removeClass("alert-td");
 }

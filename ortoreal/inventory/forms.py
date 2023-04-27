@@ -21,7 +21,8 @@ class InventoryLogFormMeta:
 
     model = InventoryLog
     widgets = {
-        "date": DatePicker(attrs={"value": timezone.now}, format="%Y-%m-%d")
+        "date": DatePicker(attrs={"value": timezone.now}, format="%Y-%m-%d"),
+        "comment": forms.TextInput(attrs={"size": 80}),
     }
 
 
@@ -57,10 +58,8 @@ class InventoryTakeForm(forms.ModelForm):
         fields = (
             "operation",
             "client",
-            "date",
             "comment",
         )
-        widgets = {"comment": forms.TextInput(attrs={"size": 80})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -98,7 +97,7 @@ class ItemAddForm(ItemForm):
 
 ItemAddFormSet = forms.formset_factory(
     ItemAddForm,
-    extra=2,
+    extra=1,
 )
 
 
@@ -125,6 +124,9 @@ class ItemTakeForm(ItemForm):
             total = self.queryset.get(id=part.id).total
             if quantity > total:
                 raise forms.ValidationError(f"Не больше {total}")
+        if not quantity:
+            quantity = 0
+        print(quantity)
         return quantity
 
     class Meta:
@@ -151,16 +153,17 @@ PartAddFormSet = forms.modelformset_factory(
 )
 
 
-class ItemReturnForm(forms.ModelForm):
-    return_item = forms.BooleanField(label="Вернуть")
-    # part = forms.CharField(
-    #     label="Артикул",
-    #     widget=forms.TextInput(
-    #         attrs={"readonly": "readonly", "class": "form-control-plaintext"}
-    #     ),
-    # )
-    quantity = forms.IntegerField(label="Количество", initial=0)
+class ItemReturnForm(forms.Form):
+    return_item = forms.BooleanField(label="Вернуть", required=False)
+    part = forms.CharField(label="Артикул", required=False)
+    quantity = forms.IntegerField(
+        label="Количество", min_value=0, required=False
+    )
+    part_id = forms.IntegerField(widget=forms.HiddenInput())
 
     class Meta:
         model = Item
-        fields = ('return_item', 'part', 'quantity')
+        fields = ("return_item", "part", "quantity", "part_id")
+
+
+ItemReturnFormSet = forms.formset_factory(form=ItemReturnForm, extra=0)

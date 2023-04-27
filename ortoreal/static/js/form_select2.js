@@ -44,7 +44,7 @@ $(document).ready(function() {
     $(".form-group.col:first-child").each(function() {
       $(this).addClass("w-50");
     });
-    $('[id$="-part"]').each(changeTotal);
+    $('[id$="-part"]').each(changeMax);
 });
 
 addButton.addEventListener('click', addForm);
@@ -90,7 +90,7 @@ function addForm(e) {
     formNum++;
     totalForms.setAttribute('value', `${formNum}`);
     $("#remove-form").show();
-    $('[id$="-part"]').on('change', changeTotal);
+    $('[id$="-part"]').on('change', changeMax);
 }
 
 function removeForm(e) {
@@ -109,12 +109,18 @@ function removeForm(e) {
     }
 }
 
-$('[id$="-part"]').on('change', changeTotal);
-$('[id$="-part"]').on('change', removeAlert);
+let partSelect = $('[id$="-part"]');
 
-function changeTotal() {
-    let value = $(this).val();
-    $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-total"]').children("select").prop('selectedIndex', value);
+partSelect.on('change', changeMax);
+partSelect.on('change', removeAlert);
+
+function changeMax() {
+    let index = $(this).prop("selectedIndex");
+    let columns = $(this).closest(".row.item-form").children(".form-group.col")
+    let selection = columns.has('[id$="-total"]').children("select");
+    selection.prop("selectedIndex", index);
+    let value = selection.val();
+    columns.has('[id$="-quantity"]').children("input").attr({"max": value});
 }
 function removeAlert() {
     if ($('.form-container.taking')) {

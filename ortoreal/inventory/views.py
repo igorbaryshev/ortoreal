@@ -3,10 +3,11 @@ import urllib
 
 import django_tables2 as tables
 from django import forms
+from django.db import transaction
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count, F, Window
-from django.db.models.functions import RowNumber
+from django.db.models import Count, F, Window, Value, Q
+from django.db.models.functions import RowNumber, Concat
 from django.http.response import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -19,7 +20,7 @@ from inventory.forms import (
     ItemAddFormSet,
     ItemTakeFormSet,
     PartAddFormSet,
-    ItemReturnForm,
+    ItemReturnFormSet,
 )
 from inventory.models import InventoryLog, Item, Order, Part
 from inventory.tables import OrderTable, VendorOrderTable
@@ -116,7 +117,6 @@ def add_items(request):
         "formset": item_formset,
         "adding": True,
     }
-    print(item_formset[0]["part"].name)
 
     return render(request, "inventory/add_items.html", context)
 
@@ -198,68 +198,90 @@ def take_items(request):
     entry_form.fields["client"].queryset = Job.objects.filter(
         prosthetist=request.user
     )
-    item_formset = ItemTakeFormSet(request.POST or None, prefix="item")
-    ItemReturnFormSet = forms.formset_factory(form=ItemReturnForm, extra=1)
-    return_formset = ItemReturnFormSet(request.POST or None, prefix="return")
+    take_formset = ItemTakeFormSet(None, prefix="item")
+    return_formset = ItemReturnFormSet(None, prefix="return")
+    taking = None
+
+    if request.method == "POST" and entry_form.is_valid():
+        print("VALID ENTRY")
+        operation = entry_form.cleaned_data["operation"]
+        job = entry_form.cleaned_data["client"]
+        if operation == "RETURNED":
+            taking = False
+            return_formset = ItemReturnFormSet(
+                request.POST or None, prefix="return"
+            )
+            queryset = (
+                job.items.values("part__vendor_code")
+                .annotate(
+                    max_parts=Count("part__vendor_code"),
+                    part_name=Concat(
+                        F("part__vendor_code"), Value(" "), F("part__name")
+                    ),
+                    units=F("part__units"),
+                )
+                .values("max_parts", "part_id", "part_name", "units")
+                .annotate(part=F("part_name"))
+            )
+            if len(return_formset) == 0:
+                print(queryset)
+                return_formset = ItemReturnFormSet(
+                    initial=queryset, prefix="return"
+                )
+                for i in range(len(return_formset)):
+                    part = queryset[i]
+                    max_parts = part["max_parts"]
+                    units = Part.objects.get(
+                        id=part["part_id"]
+                    ).get_units_display()
+                    return_formset[i].fields["quantity"].widget.attrs.update(
+                        {
+                            "max": max_parts,
+                            "placeholder": f"не больше {max_parts} {units}",
+                        }
+                    )
+            elif return_formset.is_valid():
+                items = job.items.order_by("-date_added", "-id")
+                comment = entry_form.cleaned_data["comment"]
+                batch_logs = []
+                batch_items = []
+                for form in return_formset:
+                    quantity = form.cleaned_data["quantity"]
+
+                    if quantity:
+                        part_id = form.cleaned_data["part_id"]
+                        part = get_object_or_404(Part, id=part_id)
+                        batch_items += list(items.filter(part=part)[:quantity])
+                        log = InventoryLog(
+                            operation=operation,
+                            comment=comment,
+                            part=part,
+                            quantity=quantity,
+                            job=job,
+                            prosthetist=request.user,
+                        )
+                        batch_logs.append(log)
+                for item in batch_items:
+                    item.job = None
+                if batch_items:
+                    Item.objects.bulk_update(batch_items, ["job"])
+                    InventoryLog.objects.bulk_create(batch_logs)
+                    return_formset = ItemReturnFormSet(None, prefix="return")
+
+        if operation == "TOOK":
+            # queryset = Item.objects(
+            #     Q(reserved=job)
+            #     | Q(job__is_null=True) & Q(reserved__is_null=True)
+            # )
+            taking = True
+            # take_formset = ItemTakeFormSet(job=job, prefix="item")
+
     context = {
         "form": entry_form,
-        "item_formset": item_formset,
+        "item_formset": take_formset,
         "return_formset": return_formset,
-        "taking": True,
+        "taking": taking,
     }
-
-    if request.method == "POST":
-        if entry_form.is_valid():
-            job = entry_form.cleaned_data["client"]
-            queryset = job.items.annotate(quantity=Count("part__vendor_code"))
-            print(queryset)
-            return_formset = ItemReturnFormSet(
-                request.POST, prefix="return"
-            )
-            print(return_formset)
-            context["return_formset"] = return_formset
-            context["taking"] = True
-
-        # if entry_form.is_valid():
-        #     operation = entry_form.cleaned_data.get("operation")
-        #     comment = entry_form.cleaned_data.get("comment")
-        #     batch_logs = []
-    #
-    #     for form in item_formset:
-    #         quantity = form.cleaned_data.get("quantity")
-    #         part = form.cleaned_data.get("part")
-    #         if quantity > int(part.quantity_total):
-    #             raise forms.ValidationError("TOO MANY")
-    #         c2_quantity = int(part.quantity_c2)
-    #         removed = 0
-    #         if c2_quantity >= 1:
-    #             items = (
-    #                 part.items.filter(warehouse="с2")
-    #                 .order_by("date_added")
-    #                 .values_list("pk", flat=True)[:quantity]
-    #             )
-    #             removed = Item.objects.filter(id__in=items).delete()[0]
-    #         c1_quantity = quantity - removed
-    #         if c1_quantity <= int(part.quantity_c1):
-    #             items = (
-    #                 part.items.filter(warehouse="с1")
-    #                 .order_by("date_added")
-    #                 .values_list("pk", flat=True)[:c1_quantity]
-    #             )
-    #             Item.objects.filter(id__in=items).delete()
-    #
-    #         log = InventoryLog(
-    #             operation=operation,
-    #             comment=comment,
-    #             part=part,
-    #             added_by=request.user,
-    #             date=date,
-    #             quantity=quantity,
-    #         )
-    #         batch_logs.append(log)
-    #     InventoryLog.objects.bulk_create(batch_logs)
-    #
-    #     return redirect("/admin/inventory/inventorylog/")
 
     return render(request, "inventory/take_items.html", context)
 

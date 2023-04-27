@@ -1,6 +1,6 @@
 <thead class="text-center">
   <tr>
-    {% for field in form %}
+    {% for field in form.visible_fields %}
       <th scope="col"
           class="justify-content-center {% if field.name == 'part' %}fixed-width{% endif %}"
           {% if field.help_text %} title="{{ field.help_text|safe }}"{% endif %}>

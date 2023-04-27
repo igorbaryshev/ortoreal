@@ -69,7 +69,7 @@ class Part(models.Model):
 
     @property
     def quantity_total(self):
-        return f"{self.items.exclude(warehouse__exact='').count()}"
+        return f"{self.items.filter(is_taken=False).count()}"
 
     quantity_total.fget.short_description = "Кол-во"
 
@@ -106,6 +106,7 @@ class Item(models.Model):
         Job,
         verbose_name="Работа",
         on_delete=models.SET_NULL,
+        blank=True,
         null=True,
         related_name="items",
     )
@@ -116,6 +117,14 @@ class Item(models.Model):
         blank=True,
         null=True,
         related_name="items",
+    )
+    reserved = models.ForeignKey(
+        Job,
+        verbose_name="Резерв",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="reserved_items",
     )
 
     @classmethod
@@ -175,15 +184,8 @@ class InventoryLog(models.Model):
         blank=True,
         null=True,
     )
-    date = models.DateField("Дата", default=timezone.now)
+    date = models.DateTimeField("Дата", default=timezone.now)
     comment = models.CharField("Комментарий", max_length=1024, blank=True)
-    added_by = models.ForeignKey(
-        User,
-        verbose_name="Кем добавлено",
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="+",
-    )
     job = models.ForeignKey(
         Job,
         verbose_name="Клиент",
