@@ -100,8 +100,8 @@ class Client(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        if self.status:
-            Status.objects.create(name=self.status, client=self)
+        # if self.status:
+        #     Status.objects.create(name=self.status, client=self)
 
 
 class Contact(models.Model):
@@ -171,15 +171,15 @@ class Comment(models.Model):
 
 class Status(models.Model):
     name = models.CharField(
-        "Название", max_length=150, choices=StatusChoices.choices, blank=False
+        "Статус", max_length=150, choices=StatusChoices.choices, blank=False
     )
-    client = models.ForeignKey(
-        Client,
-        verbose_name="Клиент",
+    job = models.ForeignKey(
+        "Job",
+        verbose_name="Работа",
         on_delete=models.CASCADE,
         related_name="statuses",
     )
-    date = models.DateField(auto_now_add=True)
+    date = models.DateTimeField("Дата", auto_now_add=True)
 
     def __str__(self) -> str:
         return f"{self.name}({self.date})"
@@ -200,7 +200,11 @@ class Job(models.Model):
         Client, verbose_name="Клиент", on_delete=models.CASCADE
     )
     prosthetist = models.ForeignKey(
-        User, verbose_name="Протезист", on_delete=models.SET_NULL, null=True
+        User,
+        verbose_name="Протезист",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="jobs",
     )
     date = models.DateTimeField("Дата", default=timezone.now)
     status = models.CharField(
@@ -214,7 +218,7 @@ class Job(models.Model):
             date = date_format(
                 statuses[0].date, format="SHORT_DATE_FORMAT", use_l10n=True
             )
-            return f"{self.get_status_display()}", f"({date})"
+            return f"{self.get_status_display()} {date}"
         return ("--нет статуса--",)
 
     status_display.fget.short_description = "Статус"
@@ -222,3 +226,12 @@ class Job(models.Model):
     class Meta:
         verbose_name = "Работа"
         verbose_name_plural = "Работы"
+
+    def __str__(self) -> str:
+        return f"{self.client} ({self.status_display})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if not self.statuses.filter(name=self.status).exists():
+            new_status = Status(name=self.status, job=self)
+            new_status.save()

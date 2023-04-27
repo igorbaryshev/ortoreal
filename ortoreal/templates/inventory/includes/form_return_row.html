@@ -1,0 +1,14 @@
+<tr class="input-row textcenter">
+  {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+  {% for field in form.visible_fields %}
+    <td class="item-form {% if field.errors %}alert-td{% endif %}"
+        title="{% for error in field.errors %}{{ error }}{% if not forloop.last %}&#10;&#013;{% endif %}{% endfor %}">
+      {% if field.name == "part" %}
+        {{ field.as_hidden }}
+        <p>{{ field.value }}</p>
+      {% else %}
+        {{ field }}
+      {% endif %}
+    </td>
+  {% endfor %}
+</tr>

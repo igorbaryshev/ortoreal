@@ -31,20 +31,19 @@ function cleanForm(form) {
 
 $(document).ready(function() {
     /*$("#id_entry-operation").addClass("form-control");*/
-    $("#id_entry-prosthetist").select2({
+    /*$("#id_entry-prosthetist").select2({
         theme: 'bootstrap-5'
     });
     $("#id_entry-client").select2({
         theme: 'bootstrap-5'
-    });
-    $('[id$="-part"').each(function() {
-        $(this).select2({
+    });*/
+    if ($("#id_entry-operation").val() == "TOOK") {
+        $('[id$="-part"').each(function() {
+            $(this).select2({
+            });
         });
-    });
-    $(".form-group.col:first-child").each(function() {
-      $(this).addClass("w-50");
-    });
-    $('[id$="-part"]').each(changeMax);
+        $('[id$="-part"]').each(changeTotal);
+    }
 });
 
 addButton.addEventListener('click', addForm);
@@ -63,12 +62,8 @@ function removeLastEmpty(e) {
         }
     }
     let form_container = document.querySelector("#form-container");
-    if (form_container.checkValidity()) {
-        form_container.submit();
-    }
-    else {
-        form_container.reportValidity();
-    }
+    form_container.submit();
+    
 }
 
 function addForm(e) {
@@ -90,7 +85,7 @@ function addForm(e) {
     formNum++;
     totalForms.setAttribute('value', `${formNum}`);
     $("#remove-form").show();
-    $('[id$="-part"]').on('change', changeMax);
+    $('[id$="-part"]').on('change', changeTotal);
 }
 
 function removeForm(e) {
@@ -111,21 +106,22 @@ function removeForm(e) {
 
 let partSelect = $('[id$="-part"]');
 
-partSelect.on('change', changeMax);
+partSelect.on('change', changeTotal);
 partSelect.on('change', removeAlert);
 
-function changeMax() {
+function changeTotal() {
     let index = $(this).prop("selectedIndex");
-    let columns = $(this).closest(".row.item-form").children(".form-group.col")
-    let selection = columns.has('[id$="-total"]').children("select");
-    selection.prop("selectedIndex", index);
-    let value = selection.val();
-    columns.has('[id$="-quantity"]').children("input").attr({"max": value});
+    let select = $(this).closest(".input-row").children("td").has('[id$="-total"]').find("select");
+    select.prop('selectedIndex', index);
+    let value = select.val();
+    console.log(value);
+    let input = $(this).closest(".input-row").children("td").has('[id$="-quantity"]').find("input")
+    input.attr("max", value);
+    input.val(0);
 }
+
 function removeAlert() {
-    if ($('.form-container.taking')) {
-        $(this).closest(".row.item-form").children(".form-group.col").has('[id$="-quantity"]').children(".alert").remove();
-    }
+    $(this).closest(".input-row").children("td").removeClass("alert-td");
 }
 
 

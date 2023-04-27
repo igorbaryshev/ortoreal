@@ -32,6 +32,13 @@ tbody > tr > td > .alert {
 }
 
 .alert-td {
-    border: 2px solid red;
-    border-width: 2px !important;
+    border: 2px solid red !important;
+}
+
+td > input {
+    border: none;
+}
+
+.select2-container--default .select2-selection--single {
+    border: none;
 }

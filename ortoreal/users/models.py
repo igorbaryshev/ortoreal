@@ -4,13 +4,13 @@ from django.utils.translation import gettext_lazy as _
 
 
 class User(AbstractUser):
+    last_name = models.CharField(
+        _("last name"), max_length=150, blank=False, default=None
+    )
     first_name = models.CharField(
         _("first name"), max_length=150, blank=False, default=None
     )
     surname = models.CharField(_("отчество"), max_length=150, blank=True)
-    last_name = models.CharField(
-        _("last name"), max_length=150, blank=False, default=None
-    )
     is_prosthetist = models.BooleanField("Протезист", default=False)
 
     @property

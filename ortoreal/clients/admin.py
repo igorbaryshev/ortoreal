@@ -5,7 +5,7 @@ from django.forms import Textarea, ModelForm
 from django.utils.html import format_html_join
 from django.utils.safestring import mark_safe
 
-from clients.models import Client, Contact
+from clients.models import Client, Contact, Job, Status
 
 User = get_user_model()
 
@@ -53,7 +53,7 @@ class ClientAdmin(admin.ModelAdmin):
         "how_contacted",
         "prosthetist",
         "region",
-        "admin_status_display",
+    #    "admin_status_display",
         "passport",
         "IPR",
         "SprMSE",
@@ -70,15 +70,35 @@ class ClientAdmin(admin.ModelAdmin):
 
     full_name.short_description = "ФИО Клиента"
 
-    def admin_status_display(self, obj):
-        return format_html_join(
-            mark_safe("<br/>"),
-            "{}",
-            ((line,) for line in obj.status_display),
-        )
+    # def admin_status_display(self, obj):
+    #     return format_html_join(
+    #         mark_safe("<br/>"),
+    #         "{}",
+    #         ((line,) for line in obj.status_display),
+    #     )
 
-    admin_status_display.short_description = "Статус"
+    # admin_status_display.short_description = "Статус"
 
     formfield_overrides = {
         models.TextField: {"widget": Textarea(attrs={"rows": 2, "cols": 60})},
     }
+
+
+@admin.register(Job)
+class JobAdmin(admin.ModelAdmin):
+    list_display = ("prosthesis", "client", "prosthetist", "date", "status")
+
+
+@admin.register(Status)
+class StatusAdmin(admin.ModelAdmin):
+    list_display = ("name", "date", "client", "prosthetist")
+
+    def client(self, obj):
+        return obj.job.client
+
+    client.short_description = "Клиент"
+
+    def prosthetist(self, obj):
+        return obj.job.prosthetist
+
+    prosthetist.short_description = "Протезист"
