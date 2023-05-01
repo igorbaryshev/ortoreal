@@ -9,7 +9,7 @@
 .nav-link {
     color: var(--orto-green);
 }
-.nav-link, .btn-group .btn{
+.nav-link, .btn{
     padding: .3rem .5rem;
 }
 

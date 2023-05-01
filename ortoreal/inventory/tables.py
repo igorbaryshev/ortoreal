@@ -3,7 +3,7 @@ from django.conf import settings
 import django_tables2 as tables
 
 from inventory.utils import dec2pre
-from inventory.models import InventoryLog
+from inventory.models import InventoryLog, Item
 
 TD_END = {
     "td": {
@@ -69,6 +69,10 @@ class InventoryLogsTable(tables.Table):
 
     class Meta:
         model = InventoryLog
+        row_attrs = {
+            "data-href": lambda record: record.get_absolute_url,
+            "style": "cursor: pointer;"
+        }
         sequence = (
             "id",
             "operation",
@@ -84,6 +88,7 @@ class InventoryLogsTable(tables.Table):
         template_name = "django_tables2/bootstrap5-responsive.html"
 
 
-# class InventoryLogItemsTable(tables.Table):
-#     class Meta:
-#         model = Item
+class InventoryLogItemsTable(tables.Table):
+    class Meta:
+        model = Item
+        template_name = "django_tables2/bootstrap5.html"

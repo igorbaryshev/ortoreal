@@ -30,11 +30,16 @@ from inventory.forms import (
 )
 from users.forms import ProsthetistJobsForm
 from inventory.models import InventoryLog, Item, Order, Part
-from inventory.tables import OrderTable, VendorOrderTable, InventoryLogsTable
+from inventory.tables import (
+    OrderTable,
+    VendorOrderTable,
+    InventoryLogsTable,
+    InventoryLogItemsTable,
+)
 from inventory.utils import generate_zip, is_prosthetist
 from xlsxwriter.workbook import Workbook
 
-PARTS_PER_PAGE = 20
+PARTS_PER_PAGE = 30
 
 
 def nomenclature(request):
@@ -444,7 +449,14 @@ class InventoryLogsListView(tables.SingleTableView):
 
 
 class InventoryLogsDetailView(tables.SingleTableView):
-    pass
+    table_class = InventoryLogItemsTable
+    paginator_class = LazyPaginator
+    paginate_by = 30
+
+    def get_log(self):
+        log = get_object_or_404(InventoryLog, pk=self.kwargs["pk"])
+        return log
 
     def get_queryset(self) -> QuerySet[Any]:
-        return
+        queryset = self.get_log().items.all()
+        return queryset

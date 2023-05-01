@@ -7,6 +7,11 @@ app_name = "inventory"
 urlpatterns = [
     path("", views.nomenclature, name="nomenclature"),
     path("logs/", views.InventoryLogsListView.as_view(), name="logs"),
+    path(
+        "logs/<int:pk>/",
+        views.InventoryLogsDetailView.as_view(),
+        name="log_items",
+    ),
     path("items/<int:pk>/", views.items, name="items"),
     path("add/", views.add_items, name="add_items"),
     path("take/", views.TakeItemsView.as_view(), name="take_items"),

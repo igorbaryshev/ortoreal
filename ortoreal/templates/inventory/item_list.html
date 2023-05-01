@@ -9,11 +9,4 @@
 {% block content %}
   {% load django_tables2 %}
   <div class="card-body">{% render_table table %}</div>
-  <script>
-    $(document).ready(function($) {
-      $("tr").click(function() {
-          window.location = $(this).data("href");
-      });
-    });
-  </script>
 {% endblock content %}

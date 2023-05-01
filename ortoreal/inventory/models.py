@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
@@ -121,14 +122,6 @@ class Item(models.Model):
         null=True,
         related_name="items",
     )
-    order = models.ForeignKey(
-        Order,
-        verbose_name="Заказ",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="items",
-    )
     reserved = models.ForeignKey(
         Job,
         verbose_name="Резерв",
@@ -136,6 +129,14 @@ class Item(models.Model):
         blank=True,
         null=True,
         related_name="reserved_items",
+    )
+    order = models.ForeignKey(
+        Order,
+        verbose_name="Заказ",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="items",
     )
 
     @classmethod
@@ -202,34 +203,15 @@ class InventoryLog(models.Model):
     date = models.DateTimeField("Дата", default=timezone.now)
     comment = models.CharField("Комментарий", max_length=1024, blank=True)
 
-    # @property
-    # def quantity(self):
-    #     return self.items.count()
-# 
-    # quantity.fget.short_description = "Количество"
-
-    #@property
-    #def vendor_code(self):
-    #    if self.items.exists():
-    #        return self.items.all()[0].part.vendor_code
-    #    return "—"
-#
-    #vendor_code.fget.short_description = "Артикул"
-#
-    #@property
-    #def part_name(self):
-    #    if self.items.exists():
-    #        return self.items.all()[0].part.name
-    #    return "—"
-#
-    #part_name.fget.short_description = "Наименование"
-
     class Meta:
         verbose_name = "Операция на складе"
         verbose_name_plural = "Операции на складе"
 
     def __str__(self):
         return f"{self.operation}"
+
+    def get_absolute_url(self):
+        return reverse("inventory:log_items", kwargs={"pk": self.pk})
 
 
 class Prosthesis(models.Model):
