@@ -22,7 +22,7 @@ class InventoryLogFormMeta:
     model = InventoryLog
     widgets = {
         "date": DatePicker(attrs={"value": timezone.now}, format="%Y-%m-%d"),
-        "comment": forms.TextInput(attrs={"size": 80}),
+        "comment": forms.Textarea(attrs={"cols": 80, "rows": 2}),
     }
 
 
@@ -43,27 +43,29 @@ class InventoryTakeForm(forms.ModelForm):
     Форма лога расхода/возврата.
     """
 
-    operation = forms.ChoiceField(
-        label="Операция",
-        choices=InventoryLog.PartialLogAction.choices,
-        widget=forms.Select(attrs={"onchange": "this.form.submit()"}),
-    )
-    client = forms.ModelChoiceField(
-        label="Клиент",
+    job = forms.ModelChoiceField(
         queryset=Job.objects.none(),
-        widget=forms.Select(attrs={"onchange": "this.form.submit()"}),
+        label="Клиент",
+        widget=forms.Select(
+            attrs={
+                "onchange": "clearFormSet(); this.form.submit();",
+            }
+        ),
     )
 
     class Meta(InventoryLogFormMeta):
         fields = (
-            "operation",
-            "client",
+            "job",
             "comment",
         )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, user, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.fields["client"].empty_label = "---выбрать---"
+        self.fields["job"].queryset = Job.objects.filter(
+            prosthetist=user
+        ).order_by("-client")
+
+        self.fields["job"].empty_label = "---выбрать---"
 
 
 class ItemForm(forms.ModelForm):
@@ -72,9 +74,9 @@ class ItemForm(forms.ModelForm):
     """
 
     quantity = forms.IntegerField(
-        label="Кол-во",
+        label="Количество",
         required=True,
-        min_value=1,
+        min_value=0,
         initial=0,
     )
 
@@ -106,37 +108,56 @@ class ItemTakeForm(ItemForm):
     Форма расхода комплектующего.
     """
 
-    queryset = Part.objects.order_by("vendor_code").annotate(
-        total=Count("items", filter=Q(items__warehouse__in=["s1", "s2"]))
+    available = forms.ChoiceField(
+        label="Наличие",
+        choices=(),
+        required=False,
+        initial="-",
+        widget=forms.Select(attrs={"hidden": ""}),
     )
 
-    total = forms.ModelChoiceField(
-        label="Наличие",
-        queryset=queryset.values_list("total", flat=True),
-        required=False,
-        widget=forms.Select(attrs={"disabled": "disabled"}),
-    )
+    def __init__(self, *args, queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.queryset = queryset
+        if queryset:
+            self.fields["part"].queryset = queryset
+            self.fields["available"].choices = [(0, "-")] + list(
+                queryset.values_list("id", "available")
+            )
 
     def clean_quantity(self):
         quantity = self.cleaned_data.get("quantity")
         part = self.cleaned_data.get("part")
         if quantity and part:
-            total = self.queryset.get(id=part.id).total
-            if quantity > total:
-                raise forms.ValidationError(f"Не больше {total}")
-        if not quantity:
+            available = part.available
+            if quantity > available:
+                raise forms.ValidationError(f"Не больше {available}")
+        else:
             quantity = 0
-        print(quantity)
         return quantity
 
     class Meta:
         model = Item
-        fields = ("part", "quantity", "total")
+        fields = ("part", "quantity", "available")
 
 
 ItemTakeFormSet = forms.formset_factory(
     ItemTakeForm,
     extra=1,
+)
+
+
+class ItemReturnForm(forms.Form):
+    part = forms.CharField(label="Артикул", required=False)
+    quantity = forms.IntegerField(
+        label="Количество", min_value=0, required=False
+    )
+    part_id = forms.IntegerField(widget=forms.HiddenInput())
+
+
+ItemReturnFormSet = forms.formset_factory(
+    form=ItemReturnForm,
+    extra=0,
 )
 
 
@@ -151,19 +172,3 @@ PartAddFormSet = forms.modelformset_factory(
     extra=1,
     exclude=("id",),
 )
-
-
-class ItemReturnForm(forms.Form):
-    return_item = forms.BooleanField(label="Вернуть", required=False)
-    part = forms.CharField(label="Артикул", required=False)
-    quantity = forms.IntegerField(
-        label="Количество", min_value=0, required=False
-    )
-    part_id = forms.IntegerField(widget=forms.HiddenInput())
-
-    class Meta:
-        model = Item
-        fields = ("return_item", "part", "quantity", "part_id")
-
-
-ItemReturnFormSet = forms.formset_factory(form=ItemReturnForm, extra=0)

@@ -63,6 +63,7 @@ class Client(models.Model):
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
+        limit_choices_to={"is_prosthetist": True},
     )
     region = models.CharField(
         "Регион",
@@ -130,7 +131,7 @@ class Contact(models.Model):
         blank=True,
         help_text="Комментарий протезиста",
     )
-    MTZ_date = models.DateField(_("МТЗ"), null=True, blank=True)
+    MTZ_date = models.DateField(_("МТЗ"), blank=True, null=True)
     result = models.CharField(
         _("Результат"),
         max_length=16,
@@ -205,6 +206,7 @@ class Job(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         related_name="jobs",
+        limit_choices_to={"is_prosthetist": True},
     )
     date = models.DateTimeField("Дата", default=timezone.now)
     status = models.CharField(

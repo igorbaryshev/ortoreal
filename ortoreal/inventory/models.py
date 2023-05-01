@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
@@ -15,6 +16,12 @@ class Order(models.Model):
     class Meta:
         verbose_name = "Заказ"
         verbose_name_plural = "Заказы"
+
+    def __str__(self) -> str:
+        current = "закрыт"
+        if self.current:
+            current = "текущий"
+        return f"Заказ {self.id} ({current})"
 
 
 class Vendor(models.Model):
@@ -57,19 +64,24 @@ class Part(models.Model):
 
     @property
     def quantity_s1(self):
-        return f"{self.items.filter(warehouse='s1').count()}"
+        return f"{self.items.filter(warehouse='s1', job=None).count()}"
 
     quantity_s1.fget.short_description = "Кол-во(С1)"
 
     @property
     def quantity_s2(self):
-        return f"{self.items.filter(warehouse__exact='s2').count()}"
+        return f"{self.items.filter(warehouse='s2', job=None).count()}"
 
     quantity_s2.fget.short_description = "Кол-во(С2)"
 
     @property
     def quantity_total(self):
-        return f"{self.items.filter(is_taken=False).count()}"
+        """
+        Кол-во комплектующих, которые
+        пришли на склад, и не взяты в работу.
+        """
+        total = self.items.filter(job=None).exclude(warehouse="").count()
+        return f"{total}"
 
     quantity_total.fget.short_description = "Кол-во"
 
@@ -110,14 +122,6 @@ class Item(models.Model):
         null=True,
         related_name="items",
     )
-    order = models.ForeignKey(
-        Order,
-        verbose_name="Заказ",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="items",
-    )
     reserved = models.ForeignKey(
         Job,
         verbose_name="Резерв",
@@ -125,6 +129,14 @@ class Item(models.Model):
         blank=True,
         null=True,
         related_name="reserved_items",
+    )
+    order = models.ForeignKey(
+        Order,
+        verbose_name="Заказ",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="items",
     )
 
     @classmethod
@@ -161,22 +173,26 @@ class ProsthesisModel(models.Model):
 class InventoryLog(models.Model):
     class PartialLogAction(models.TextChoices):
         EMPTY = "", _("---выбрать---")
-        RETURNED = "RETURNED", _("Возврат")
-        TOOK = "TOOK", _("Расход")
+        RETURN = "RETURN", _("Возврат")
+        TAKE = "TAKE", _("Расход")
 
     class LogAction(models.TextChoices):
         EMPTY = "", _("---выбрать---")
-        RECEIVED = "RECEIVED", _("Приход")
-        RETURNED = "RETURNED", _("Возврат")
-        TOOK = "TOOK", _("Расход")
+        RECEPTION = "RECEPTION", _("Приход")
+        RETURN = "RETURN", _("Возврат")
+        TAKE = "TAKE", _("Расход")
 
     operation = models.CharField(
         "Операция", max_length=32, choices=LogAction.choices
     )
-    part = models.ForeignKey(
-        Part, verbose_name="Комплектующее", on_delete=models.CASCADE
+    items = models.ManyToManyField(Item, verbose_name="Комплектующие")
+    job = models.ForeignKey(
+        Job,
+        verbose_name="Клиент",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
     )
-    quantity = models.SmallIntegerField("Количество")
     prosthetist = models.ForeignKey(
         User,
         verbose_name="Протезист",
@@ -186,20 +202,16 @@ class InventoryLog(models.Model):
     )
     date = models.DateTimeField("Дата", default=timezone.now)
     comment = models.CharField("Комментарий", max_length=1024, blank=True)
-    job = models.ForeignKey(
-        Job,
-        verbose_name="Клиент",
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-    )
 
     class Meta:
         verbose_name = "Операция на складе"
         verbose_name_plural = "Операции на складе"
 
     def __str__(self):
-        return f"{self.operation} {self.quantity} {self.part}"
+        return f"{self.operation}"
+
+    def get_absolute_url(self):
+        return reverse("inventory:log_items", kwargs={"pk": self.pk})
 
 
 class Prosthesis(models.Model):

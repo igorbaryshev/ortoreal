@@ -1,8 +1,9 @@
-<tr class="input-row">
+<tr class="input-row text-center">
   {% for field in form %}
     <td class="{% if field.errors %}alert-td{% endif %}"
         title="{% for error in field.errors %}{{ error }}{% if not forloop.last %}&#10;&#013;{% endif %}{% endfor %}">
       {{ field }}
+      {% if field.name == "available" %}<p id="p-total">-</p>{% endif %}
     </td>
   {% endfor %}
 </tr>
