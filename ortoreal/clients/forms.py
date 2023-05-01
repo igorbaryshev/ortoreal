@@ -1,7 +1,16 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from clients.models import Client, Contact, Comment, get_contact_type_choices
+from clients.models import (
+    Client,
+    Contact,
+    Comment,
+    Job,
+    get_contact_type_choices,
+)
+
+User = get_user_model()
 
 
 class DatePicker(forms.DateInput):

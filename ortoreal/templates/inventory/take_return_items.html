@@ -15,9 +15,6 @@
           id="form-container"
           class="taking">
       {% csrf_token %}
-      {% for hidden in form.hidden_fields %}
-        {{ hidden }}
-      {% endfor %}
       {% for field in form.visible_fields %}
         <div class="row g-3 align-items-center pb-1">
           <div class="col-auto">
@@ -29,8 +26,7 @@
           <div class="col-auto">{{ field|addclass:'form-control' }}</div>
         </div>
       {% endfor %}
-      {{ item_formset.management_form }}
-      {{ return_formset.management_form }}
+      {{ formset.management_form }}
       {% if form.is_valid %}
         <hr/>
         <div class="table-responsive">
@@ -38,15 +34,15 @@
           <table class="table table-bordered align-middle">
             {% if taking %}
               <link rel="stylesheet" href="{% static "css/take_table.css" %}"/>
-              {% include "includes/form_table_head.html" with form=item_formset.0 %}
-              {% for item_form in item_formset %}
-                {% include "./includes/form_item_row.html" with form=item_form %}
+              {% include "includes/form_table_head.html" with form=formset.0 %}
+              {% for form in formset %}
+                {% include "./includes/form_item_row.html" %}
               {% endfor %}
-            {% else %}
+            {% elif formset.forms %}
               <link rel="stylesheet" href="{% static 'css/return_table.css' %}"/>
-              {% include "includes/form_table_head.html" with form=return_formset.0 %}
-              {% for item_form in return_formset %}
-                {% include "./includes/form_return_row.html" with form=item_form %}
+              {% include "includes/form_table_head.html" with form=formset.0 %}
+              {% for form in formset %}
+                {% include "./includes/form_return_row.html" %}
               {% endfor %}
             {% endif %}
           </table>
@@ -67,5 +63,9 @@
       {% endif %}
     </form>
   </div>
-  <script src="{% static 'js/take_or_return.js' %}"></script>
+  {% if taking %}
+    <script src="{% static 'js/inventory/take_page.js' %}"></script>
+  {% else %}
+    <script src="{% static 'js/inventory/return_page.js' %}"></script>
+  {% endif %}
 {% endblock content %}

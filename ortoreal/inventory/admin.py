@@ -55,31 +55,30 @@ class InventoryLogAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "operation",
-        "vendor_code",
-        "name",
-        "quantity",
+        # "vendor_code",
+        # "part_name",
+        # "quantity",
         "prosthetist",
         "date",
         "comment",
     )
-    list_display_links = ("id", "operation", "vendor_code", "name")
-    search_fields = ("part__vendor_code", "part__name")
-    autocomplete_fields = ("part",)
-
-    def vendor_code(self, obj):
-        return obj.part.vendor_code
-
-    vendor_code.short_description = "Артикул"
-
-    def name(self, obj):
-        return obj.part.name
-
-    name.short_description = "Название"
+    # list_display_links = ("id", "operation", "vendor_code", "part_name")
+    search_fields = ("items__part__vendor_code", "items__part__name")
+    # исправить позже
+    # autocomplete_fields = ("part",)
 
 
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
-    list_display = ("id", "vendor_code", "name", "warehouse", "date_added")
+    list_display = (
+        "id",
+        "vendor_code",
+        "name",
+        "warehouse",
+        "job",
+        "reserved",
+        "date_added",
+    )
     list_display_links = list_display
     search_fields = ("part__vendor_code", "part__name")
 

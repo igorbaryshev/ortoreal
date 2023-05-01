@@ -3,6 +3,7 @@ from django.conf import settings
 import django_tables2 as tables
 
 from inventory.utils import dec2pre
+from inventory.models import InventoryLog
 
 TD_END = {
     "td": {
@@ -59,3 +60,30 @@ class OrderTable(VendorOrderTable):
             "price",
             "price_mul",
         )
+
+
+class InventoryLogsTable(tables.Table):
+    vendor_code = tables.Column("Артикул", order_by=("vendor_code", "date"))
+    part_name = tables.Column("Наименование", order_by=("part_name", "date"))
+    item_count = tables.Column("Количество", order_by=("item_count", "date"))
+
+    class Meta:
+        model = InventoryLog
+        sequence = (
+            "id",
+            "operation",
+            "vendor_code",
+            "part_name",
+            "item_count",
+            "job",
+            "prosthetist",
+            "date",
+            "comment",
+        )
+        exclude = ("part",)
+        template_name = "django_tables2/bootstrap5-responsive.html"
+
+
+# class InventoryLogItemsTable(tables.Table):
+#     class Meta:
+#         model = Item

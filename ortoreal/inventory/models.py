@@ -16,6 +16,12 @@ class Order(models.Model):
         verbose_name = "Заказ"
         verbose_name_plural = "Заказы"
 
+    def __str__(self) -> str:
+        current = "закрыт"
+        if self.current:
+            current = "текущий"
+        return f"Заказ {self.id} ({current})"
+
 
 class Vendor(models.Model):
     name = models.CharField(max_length=1024)
@@ -57,19 +63,24 @@ class Part(models.Model):
 
     @property
     def quantity_s1(self):
-        return f"{self.items.filter(warehouse='s1').count()}"
+        return f"{self.items.filter(warehouse='s1', job=None).count()}"
 
     quantity_s1.fget.short_description = "Кол-во(С1)"
 
     @property
     def quantity_s2(self):
-        return f"{self.items.filter(warehouse__exact='s2').count()}"
+        return f"{self.items.filter(warehouse='s2', job=None).count()}"
 
     quantity_s2.fget.short_description = "Кол-во(С2)"
 
     @property
     def quantity_total(self):
-        return f"{self.items.filter(is_taken=False).count()}"
+        """
+        Кол-во комплектующих, которые
+        пришли на склад, и не взяты в работу.
+        """
+        total = self.items.filter(job=None).exclude(warehouse="").count()
+        return f"{total}"
 
     quantity_total.fget.short_description = "Кол-во"
 
@@ -161,22 +172,26 @@ class ProsthesisModel(models.Model):
 class InventoryLog(models.Model):
     class PartialLogAction(models.TextChoices):
         EMPTY = "", _("---выбрать---")
-        RETURNED = "RETURNED", _("Возврат")
-        TOOK = "TOOK", _("Расход")
+        RETURN = "RETURN", _("Возврат")
+        TAKE = "TAKE", _("Расход")
 
     class LogAction(models.TextChoices):
         EMPTY = "", _("---выбрать---")
-        RECEIVED = "RECEIVED", _("Приход")
-        RETURNED = "RETURNED", _("Возврат")
-        TOOK = "TOOK", _("Расход")
+        RECEPTION = "RECEPTION", _("Приход")
+        RETURN = "RETURN", _("Возврат")
+        TAKE = "TAKE", _("Расход")
 
     operation = models.CharField(
         "Операция", max_length=32, choices=LogAction.choices
     )
-    part = models.ForeignKey(
-        Part, verbose_name="Комплектующее", on_delete=models.CASCADE
+    items = models.ManyToManyField(Item, verbose_name="Комплектующие")
+    job = models.ForeignKey(
+        Job,
+        verbose_name="Клиент",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
     )
-    quantity = models.SmallIntegerField("Количество")
     prosthetist = models.ForeignKey(
         User,
         verbose_name="Протезист",
@@ -186,20 +201,35 @@ class InventoryLog(models.Model):
     )
     date = models.DateTimeField("Дата", default=timezone.now)
     comment = models.CharField("Комментарий", max_length=1024, blank=True)
-    job = models.ForeignKey(
-        Job,
-        verbose_name="Клиент",
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-    )
+
+    # @property
+    # def quantity(self):
+    #     return self.items.count()
+# 
+    # quantity.fget.short_description = "Количество"
+
+    #@property
+    #def vendor_code(self):
+    #    if self.items.exists():
+    #        return self.items.all()[0].part.vendor_code
+    #    return "—"
+#
+    #vendor_code.fget.short_description = "Артикул"
+#
+    #@property
+    #def part_name(self):
+    #    if self.items.exists():
+    #        return self.items.all()[0].part.name
+    #    return "—"
+#
+    #part_name.fget.short_description = "Наименование"
 
     class Meta:
         verbose_name = "Операция на складе"
         verbose_name_plural = "Операции на складе"
 
     def __str__(self):
-        return f"{self.operation} {self.quantity} {self.part}"
+        return f"{self.operation}"
 
 
 class Prosthesis(models.Model):

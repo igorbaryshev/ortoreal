@@ -3,7 +3,7 @@ let addButton = document.querySelector("#add-form");
 let removeButton = document.querySelector("#remove-form");
 let totalForms = document.querySelector("#id_item-TOTAL_FORMS");
 let buttonRow = document.querySelector(".button-row");
-let submitButton = document.querySelector("#submit-form");
+let takeButton = document.querySelector("#take-button");
 
 var form = document.querySelectorAll(".input-row");
 var formNum = form.length;
@@ -37,22 +37,42 @@ $(document).ready(function() {
     $("#id_entry-client").select2({
         theme: 'bootstrap-5'
     });*/
-    if ($("#id_entry-operation").val() == "TOOK") {
-        $('[id$="-part"').each(function() {
-            $(this).select2({
-            });
+
+    $('[id$="-part"').each(function() {
+        $(this).select2({
         });
-        $('[id$="-part"]').each(changeTotal);
-    }
+    });
+    $('[id$="-part"]').each(changeTotal);
 });
 
 addButton.addEventListener('click', addForm);
 removeButton.addEventListener('click', removeForm);    
-submitButton.addEventListener('click', removeLastEmpty);
+takeButton.addEventListener('click', removeLastEmpty);
+const input = document.querySelector('.table-responsive');
+
+/* Исправляем и сообщаем о неверном вводе числа в таблицу */
+input.addEventListener('input', (e) => {
+    if (e.target.type == "number"){
+        value = Number(e.target.value);
+        max = Number(e.target.max);
+        min = Number(e.target.min);
+        console.log(value);
+        if (value > max){
+            e.target.setCustomValidity(`Не больше ${max}`)
+            e.target.reportValidity();
+            e.target.value = max;
+        }
+        else if (value < min){
+            e.target.setCustomValidity(`Не меньше ${min}`)
+            e.target.reportValidity();
+            e.target.value = min;
+        }
+    }
+});
 
 function removeLastEmpty(e) {
     e.preventDefault();
-    if (formNum > 1) {
+    if (formNum > 0) {
         let form = document.querySelectorAll(".input-row");
         let lastForm = form[formNum - 1];
         let select = lastForm.querySelector("select").value;
@@ -113,11 +133,12 @@ function changeTotal() {
     let index = $(this).prop("selectedIndex");
     let select = $(this).closest(".input-row").children("td").has('[id$="-total"]').find("select");
     select.prop('selectedIndex', index);
-    let value = select.val();
+    let value = select.find("option:selected").text();
     console.log(value);
     let input = $(this).closest(".input-row").children("td").has('[id$="-quantity"]').find("input")
     input.attr("max", value);
     input.val(0);
+    $(this).closest(".input-row").children("td").find("#p-total").text(value);
 }
 
 function removeAlert() {
