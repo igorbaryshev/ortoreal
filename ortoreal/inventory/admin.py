@@ -3,11 +3,11 @@ from django.db.models import Sum
 
 from inventory.models import (
     InventoryLog,
-    Part,
     Item,
-    Vendor,
     Order,
+    Part,
     Prosthesis,
+    Vendor,
 )
 from inventory.utils import dec2pre
 
@@ -77,7 +77,7 @@ class ItemAdmin(admin.ModelAdmin):
         "warehouse",
         "job",
         "reserved",
-        "date_added",
+        "date",
     )
     list_display_links = list_display
     search_fields = ("part__vendor_code", "part__name")

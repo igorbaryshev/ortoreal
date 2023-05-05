@@ -14,6 +14,7 @@
       <form method="post" class="d-flex justify-content-around">
         {% csrf_token %}
         <input class="btn btn-danger" type="submit" value="Закрыть заказ"/>
+        <a class="btn btn-warning" href="{% url 'inventory:free_order' %}">Добавить комплектующие</a>
       {% else %}
         <div class="d-flex justify-content-around">
         {% endif %}

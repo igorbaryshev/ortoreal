@@ -1,12 +1,19 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.urls import reverse
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from clients.models import Client, Job
 
 User = get_user_model()
+
+
+class Warehouse(models.Model):
+    name = models.CharField("Склад", max_length=32)
+
+    def __str__(self) -> str:
+        return f"{self.name}"
 
 
 class Order(models.Model):
@@ -110,7 +117,7 @@ class Item(models.Model):
         blank=False,
         null=False,
     )
-    date_added = models.DateField("Дата", default=timezone.now)
+    date = models.DateField("Дата", default=timezone.now)
     warehouse = models.CharField(
         "Склад", max_length=16, choices=Warehouse.choices, blank=True
     )
@@ -185,7 +192,9 @@ class InventoryLog(models.Model):
     operation = models.CharField(
         "Операция", max_length=32, choices=LogAction.choices
     )
-    items = models.ManyToManyField(Item, verbose_name="Комплектующие")
+    items = models.ManyToManyField(
+        Item, verbose_name="Комплектующие", related_name="logs"
+    )
     job = models.ForeignKey(
         Job,
         verbose_name="Клиент",

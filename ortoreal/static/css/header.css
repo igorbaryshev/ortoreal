@@ -9,7 +9,8 @@
 .nav-link {
     color: var(--orto-green);
 }
-.nav-link, .btn{
+
+.nav-link, .btn {
     padding: .3rem .5rem;
 }
 
@@ -20,5 +21,3 @@
 .nav, .btn {
     font-size: .95rem;
 }
-
-

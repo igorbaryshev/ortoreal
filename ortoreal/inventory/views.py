@@ -1,43 +1,46 @@
 import io
-from typing import Any, Dict, Optional
 import urllib
-from django.db.models.query import QuerySet
+from typing import Any, Dict, Optional
 
-import django_tables2 as tables
-from django_tables2.paginators import LazyPaginator
 from django import forms
-from django.db import transaction
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.paginator import Paginator
-from django.db.models import Count, F, Window, Value, Q, QuerySet
-from django.db.models.functions import RowNumber, Concat
+from django.db import transaction
+from django.db.models import Count, F, Q, QuerySet, Value, Window
+from django.db.models.functions import Concat, RowNumber
+from django.db.models.query import QuerySet
 from django.http.response import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django_tables2.export.views import ExportMixin
 from django.views import View
 from django.views.generic.list import ListView
 
+import django_tables2 as tables
+from django_tables2.export.views import ExportMixin
+from django_tables2.paginators import LazyPaginator
+from xlsxwriter.workbook import Workbook
+
 from clients.models import Client, Job
 from inventory.forms import (
+    CommentForm,
+    FreeOrderFormSet,
     InventoryAddForm,
     InventoryTakeForm,
     ItemAddFormSet,
+    ItemReturnFormSet,
     ItemTakeFormSet,
     PartAddFormSet,
-    ItemReturnFormSet,
 )
-from users.forms import ProsthetistJobsForm
 from inventory.models import InventoryLog, Item, Order, Part
 from inventory.tables import (
+    InventoryLogItemsTable,
+    InventoryLogsTable,
     OrderTable,
     VendorOrderTable,
-    InventoryLogsTable,
-    InventoryLogItemsTable,
 )
 from inventory.utils import generate_zip, is_prosthetist
-from xlsxwriter.workbook import Workbook
+from users.forms import ProsthetistJobsForm
 
 PARTS_PER_PAGE = 30
 
@@ -83,54 +86,88 @@ def items(request, pk):
     return render(request, "inventory/items.html", context)
 
 
-@login_required
-def add_items(request):
+class AddItemsView(LoginRequiredMixin, View):
     """
     Приход.
     """
-    entry_form = InventoryAddForm(request.POST or None, prefix="entry")
-    item_formset = ItemAddFormSet(request.POST or None, prefix="item")
 
-    if (
-        request.method == "POST"
-        and entry_form.is_valid()
-        and item_formset.is_valid()
-    ):
-        date = entry_form.cleaned_data["date"]
-        operation = InventoryLog.LogAction.RECEPTION
-        comment = entry_form.cleaned_data["comment"]
-        batch_items = []
-        batch_logs = []
-        for form in item_formset:
-            quantity = form.cleaned_data["quantity"]
-            if quantity:
-                part = form.cleaned_data["part"]
-                warehouse = form.cleaned_data["warehouse"]
-                batch_items += [
-                    Item(part=part, warehouse=warehouse, date_added=date)
-                    for _ in range(quantity)
-                ]
+    def get(self, request, *args, **kwargs):
+        form = InventoryAddForm(prefix="entry")
+        formset = ItemAddFormSet(prefix="item")
+        context = {
+            "form": form,
+            "formset": formset,
+            "adding": True,
+        }
+        return render(request, "inventory/add_items.html", context)
+
+    def post(self, request, *args, **kwargs):
+        form = InventoryAddForm(request.POST, prefix="entry")
+        formset = ItemAddFormSet(request.POST, prefix="item")
+        if form.is_valid() and formset.is_valid() and formset.forms:
+            date = form.cleaned_data["date"]
+            operation = InventoryLog.LogAction.RECEPTION
+            comment = form.cleaned_data["comment"]
+            # фильтр: не назначен склад, не в текущем заказе,
+            # сортировка по дате резерва, без резерва - в последнюю очередь
+            ordered_items = Item.objects.filter(
+                warehouse="", order__current=False
+            ).order_by(F("reserved__date").asc(nulls_last=True), F("id").asc())
+            # оставляем только приходы с кол-вом > 0
+            formset_gen = (
+                x for x in formset if x.cleaned_data["quantity"] > 0
+            )
+            for formset_form in formset_gen:
                 log = InventoryLog(
                     operation=operation,
                     comment=comment,
-                    part=part,
-                    added_by=request.user,
-                    date=date,
-                    quantity=quantity,
                 )
-                batch_logs.append(log)
-        InventoryLog.objects.bulk_create(batch_logs)
-        Item.objects.bulk_create(batch_items)
+                log.save()
+                log = InventoryLog.objects.get(id=log.id)
+                quantity = formset_form.cleaned_data["quantity"]
+                part = formset_form.cleaned_data["part"]
+                warehouse = formset_form.cleaned_data["warehouse"]
+                matching_ordered = ordered_items.filter(part=part)
+                # Проверяем, есть ли пришедшие в заказанных,
+                # добавляем склад и дату прихода
+                batch_update_items = []
+                if matching_ordered.exists():
+                    match_quantity = len(matching_ordered)
+                    if quantity > match_quantity:
+                        quantity -= match_quantity
+                    else:
+                        match_quantity = quantity
+                    for item in matching_ordered[:match_quantity]:
+                        item.warehouse, item.date = warehouse, date
+                        batch_update_items.append(item)
+                # Если в приходе больше, чем заказанных,
+                # создаём записи для остальных
+                if quantity:
+                    batch_create_items = [
+                        Item(part=part, warehouse=warehouse, date=date)
+                        for _ in range(quantity)
+                    ]
+                    Item.objects.bulk_create(batch_create_items)
+                # Берём только что созданные записи для добавления в историю
+                created_items = list(
+                    Item.objects.filter(
+                        date=date, part=part, logs=None, order=None
+                    )
+                )
+                log_items = created_items + batch_update_items
+                log.items.set(log_items)
+                log.save()
+            Item.objects.bulk_update(batch_update_items, ["warehouse", "date"])
 
-        return redirect("admin:inventory_inventorylog_changelist")
+            return redirect("inventory:logs")
 
-    context = {
-        "form": entry_form,
-        "formset": item_formset,
-        "adding": True,
-    }
+        context = {
+            "form": form,
+            "formset": formset,
+            "adding": True,
+        }
 
-    return render(request, "inventory/add_items.html", context)
+        return render(request, "inventory/add_items.html", context)
 
 
 class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -152,44 +189,57 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
         formset = ItemTakeFormSet(request.POST, prefix="item")
         if form.is_valid():
             job = form.cleaned_data["job"]
+            # queryset для выбора комплектующих
             form_kwargs = {"queryset": self.get_queryset(job)}
+            # проверяем наличие форм в формсете,
+            # что будет означать, что клиент в форме не изменился
             if formset.forms:
                 formset = ItemTakeFormSet(
                     request.POST, form_kwargs=form_kwargs, prefix="item"
                 )
                 if formset.is_valid():
-                    print("here")
                     comment = form.cleaned_data["comment"]
                     operation = "TAKE"
                     batch_items = []
+                    # записываем комплектующие, чтобы избавиться от повторов
                     parts = []
                     items_filter = Q(job=None) & (
                         Q(reserved=job) | Q(reserved=None)
                     )
-                    for formset_form in formset:
+                    # берём только первые не повторные детали с кол-вом > 0
+                    formset_gen = (
+                        x
+                        for x in formset
+                        if x.cleaned_data["part"] not in parts
+                        and x.cleaned_data["quantity"] > 0
+                    )
+                    for formset_form in formset_gen:
                         quantity = formset_form.cleaned_data["quantity"]
                         part = formset_form.cleaned_data["part"]
-                        if quantity and part not in parts:
-                            parts.append(part)
-                            items = Item.objects.filter(
-                                items_filter & Q(part=part)
-                            ).order_by("-warehouse", "date_added")[:quantity]
-                            log = InventoryLog(
-                                operation=operation,
-                                job=job,
-                                prosthetist=request.user,
-                                comment=comment,
-                            )
-                            log.save()
-                            log = InventoryLog.objects.get(id=log.id)
-                            log.items.set(items)
-                            log.save()
-                            batch_items += list(items)
+                        parts.append(part)
+                        # фильтруем: в первую очередь самые старые со склада 2
+                        items = Item.objects.filter(
+                            items_filter & Q(part=part)
+                        ).order_by("-warehouse", "date")[:quantity]
+                        log = InventoryLog(
+                            operation=operation,
+                            job=job,
+                            prosthetist=request.user,
+                            comment=comment,
+                        )
+                        # сохраняем операцию, чтобы создать
+                        # Many-to-Many связь с комплектующими
+                        log.save()
+                        log = InventoryLog.objects.get(id=log.id)
+                        log.items.set(items)
+                        log.save()
+                        batch_items += list(items)
                     for item in batch_items:
                         item.job = job
                     if batch_items:
                         Item.objects.bulk_update(batch_items, ["job"])
                     return redirect("inventory:nomenclature")
+            # если клиент в форме изменился, меняем queryset в формсете
             else:
                 formset = ItemTakeFormSet(
                     form_kwargs=form_kwargs, prefix="item"
@@ -245,31 +295,69 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                         }
                     )
             elif formset.is_valid():
-                job_items = job.items.order_by("-date_added", "-id")
+                job_items = job.items.order_by("-date", "-id")
                 comment = form.cleaned_data["comment"]
                 operation = "RETURN"
                 batch_items = []
-                for form in formset:
-                    quantity = form.cleaned_data["quantity"]
-                    if quantity:
-                        part_id = form.cleaned_data["part_id"]
-                        part = get_object_or_404(Part, id=part_id)
-                        items = job_items.filter(part=part)[:quantity]
-                        log = InventoryLog(
-                            operation=operation,
-                            job=job,
-                            prosthetist=request.user,
-                            comment=comment,
+                formset_gen = (
+                    x for x in formset if x.cleaned_data["quantity"] > 0
+                )
+                for formset_form in formset_gen:
+                    quantity = formset_form.cleaned_data["quantity"]
+                    log = InventoryLog(
+                        operation=operation,
+                        job=job,
+                        prosthetist=request.user,
+                        comment=comment,
+                    )
+                    part_id = formset_form.cleaned_data["part_id"]
+                    part = get_object_or_404(Part, id=part_id)
+                    items = list(job_items.filter(part=part)[:quantity])
+                    # т.к. возвращаем самые новые, из них поставим
+                    # в начало самые старые по возможности со склада 2
+                    # для заполнения текущих резервов
+                    items.sort(
+                        key=lambda x: (
+                            x.warehouse,
+                            -int(x.date.strftime("%Y%m%d%H%M%S")),
+                            -x.id,
+                        ),
+                        reverse=True,
+                    )
+                    # находим ещё не взятые резервы других работ
+                    # и сортируем по складу, если уже на складе,
+                    # а те, что находятся в текущем заказе,
+                    # потом удалим из заказа, чтобы не заказывать лишнее
+                    replace_items = (
+                        Item.objects.filter(
+                            job=None, reserved__isnull=False, part=part
                         )
-                        log.save()
-                        log = InventoryLog.objects.get(id=log.id)
-                        log.items.set(items)
-                        log.save()
-                        batch_items += list(items)
+                        .exclude(reserved=job)
+                        .order_by("reserved__date", "warehouse", "id")[
+                            :quantity
+                        ]
+                    )
+                    i = 0
+                    j = 0
+                    while i < len(replace_items) and i < len(items):
+                        items[i].reserved = replace_items[i].reserved
+                        items[i].save()
+                        replace_items[i].reserved = None
+                        replace_items[i].save()
+                        i += 1
+                    for j in range(i, len(items)):
+                        items[j].save()
+                    log.save()
+                    log = InventoryLog.objects.get(id=log.id)
+                    log.items.set(items)
+                    log.save()
+                    batch_items += list(items)
                 for item in batch_items:
                     item.job = None
+                    if item.reserved == job:
+                        item.reserved = None
                 if batch_items:
-                    Item.objects.bulk_update(batch_items, ["job"])
+                    Item.objects.bulk_update(batch_items, ["job", "reserved"])
                 return redirect("inventory:nomenclature")
 
         context = {"form": form, "taking": False, "formset": formset}
@@ -289,6 +377,37 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
             .annotate(part=F("part_name"))
         )
         return queryset
+
+
+class FreeOrderItemsView(LoginRequiredMixin, View):
+    """
+    View-класс свободного заказа.
+    """
+
+    def get(self, request, *args, **kwargs):
+        formset = FreeOrderFormSet()
+        context = {"formset": formset}
+        return render(request, "inventory/free_order.html", context)
+
+    def post(self, request, *args, **kwargs):
+        formset = FreeOrderFormSet(request.POST)
+        if formset.forms and formset.is_valid():
+            order = get_object_or_404(Order, current=True)
+            batch_items = []
+            formset_gen = (
+                x for x in formset if x.cleaned_data["quantity"] > 0
+            )
+            for formset_form in formset_gen:
+                part = formset_form.cleaned_data["part"]
+                quantity = formset_form.cleaned_data["quantity"]
+                batch_items += [
+                    Item(part=part, order=order) for _ in range(quantity)
+                ]
+            Item.objects.bulk_create(batch_items)
+            return redirect("inventory:order")
+
+        context = {"formset": formset}
+        return render(request, "inventory/free_order.html", context)
 
 
 @login_required
@@ -358,6 +477,7 @@ class OrderView(ExportMixin, tables.SingleTableView):
         if self.is_current:
             order = get_object_or_404(Order, current=True)
             order.current = False
+            order.date = timezone.now()
             order.save()
             Order.objects.create()
             return redirect("inventory:order_by_id", pk=order.pk)
@@ -458,5 +578,5 @@ class InventoryLogsDetailView(tables.SingleTableView):
         return log
 
     def get_queryset(self) -> QuerySet[Any]:
-        queryset = self.get_log().items.all()
+        queryset = self.get_log().items.order_by("-id")
         return queryset

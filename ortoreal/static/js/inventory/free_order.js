@@ -1,31 +1,13 @@
 let container = document.querySelector("tbody");
-let totalForms = document.querySelector("#id_item-TOTAL_FORMS");
+let totalForms = document.querySelector("#id_form-TOTAL_FORMS");
 let addButton = document.querySelector("#add-form");
 let removeButton = document.querySelector("#remove-form");
 let buttonRow = document.querySelector(".button-row");
-let submitButton = document.querySelector("#take-button");
+let submitButton = document.querySelector("#submit-form");
 let fullForm = $("#form-container");
 
 var form = document.querySelectorAll(".input-row");
 var formNum = form.length;
-
-function changeAvailable() {
-  let index = $(this).prop("selectedIndex");
-  let select = $(this)
-    .closest(".input-row")
-    .children("td")
-    .has('[id$="-total"]')
-    .find("select");
-  select.prop("selectedIndex", index);
-  let value = select.find("option:selected").text();
-  let input = $(this)
-    .closest(".input-row")
-    .children("td")
-    .has('[id$="-quantity"]')
-    .find("input");
-  input.attr("max", value);
-  $(this).closest(".input-row").children("td").find("#p-total").text(value);
-}
 
 function resetQuantity() {
   let input = $(this)
@@ -40,7 +22,6 @@ function cleanForm(form) {
   form.querySelectorAll("td").forEach((field) => {
     field.classList.remove("alert-td");
   });
-  form.querySelector('[name$="-available"]').value = "";
   form.querySelector('[name$="-part"]').value = "";
   form.querySelector('[name$="-quantity"]').value = "0";
 }
@@ -49,15 +30,9 @@ $(document).ready(function () {
   if (formNum == 1) {
     $("#remove-form").hide();
   }
-  $("#id_job").each(function () {
-    $(this).select2({
-      theme: "bootstrap-5",
-    });
-  });
   $('[id$="-part"').each(function () {
     $(this).select2();
   });
-  $('[id$="-part"]').each(changeAvailable);
 });
 
 function removeLastEmpty() {
@@ -75,22 +50,21 @@ function removeLastEmpty() {
 function addForm(e) {
   e.preventDefault();
   let form = firstForm.cloneNode(true);
-  let formRegex = RegExp(`item-(\\d){1,3}-`, "g");
+  let formRegex = RegExp(`form-(\\d){1,3}-`, "g");
 
   alerts = form.querySelectorAll(".alert");
   alerts.forEach((alert) => {
     alert.remove();
   });
 
-  form.innerHTML = form.innerHTML.replace(formRegex, `item-${formNum}-`);
+  form.innerHTML = form.innerHTML.replace(formRegex, `form-${formNum}-`);
   document.querySelector("#form-container tbody").append(form);
   cleanForm(form);
-  $(`[name="item-${formNum}-part"]`).select2();
+  $(`[name="form-${formNum}-part"]`).select2();
   formNum++;
   totalForms.setAttribute("value", `${formNum}`);
   $("#remove-form").show();
   $('[id$="-part"]').on("change", function () {
-    changeAvailable.call($(this));
     resetQuantity.call($(this));
   });
 }
@@ -108,6 +82,7 @@ function removeForm() {
     $("#remove-form").hide();
   }
 }
+
 function removeAlert() {
   $(this).closest(".input-row").children("td").removeClass("alert-td");
 }
@@ -138,12 +113,8 @@ if (formNum) {
   input.addEventListener("change", (e) => {
     if (e.target.type == "number") {
       value = Number(e.target.value);
-      max = Number(e.target.max);
       min = Number(e.target.min);
-      e.target.setCustomValidity(`Не больше ${max}`);
-      if (value > max && !e.target.reportValidity()) {
-        e.target.value = max;
-      } else if (value < min) {
+      if (value < min) {
         e.target.value = min;
       }
     }
@@ -160,7 +131,6 @@ if (formNum) {
   let partSelect = $('[id$="-part"]');
 
   partSelect.on("change", function () {
-    changeAvailable.call($(this));
     resetQuantity.call($(this));
   });
   partSelect.on("change", removeAlert);

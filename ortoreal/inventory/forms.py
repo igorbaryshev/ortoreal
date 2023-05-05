@@ -2,8 +2,8 @@ from django import forms
 from django.db.models import Count, Q
 from django.utils import timezone
 
-from inventory.models import InventoryLog, Item, Part
 from clients.models import Client, Job
+from inventory.models import InventoryLog, Item, Part
 
 
 class DatePicker(forms.DateInput):
@@ -172,3 +172,25 @@ PartAddFormSet = forms.modelformset_factory(
     extra=1,
     exclude=("id",),
 )
+
+
+class CommentForm(forms.Form):
+    comment = forms.CharField(
+        label="Комментарий",
+        max_length=1024,
+        required=False,
+        widget=forms.Textarea(attrs={"cols": 80, "rows": 2}),
+    )
+
+
+class FreeOrderForm(ItemForm):
+    """
+    Форма свободного заказа.
+    """
+
+    class Meta:
+        model = Item
+        fields = ("part", "quantity")
+
+
+FreeOrderFormSet = forms.formset_factory(FreeOrderForm, extra=1)

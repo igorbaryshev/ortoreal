@@ -2,7 +2,7 @@
 {% load static %}
 {% load user_filters %}
 {% block title %}
-  Приход
+  Свободный заказ
 {% endblock title %}
 {% block content %}
   <div class="card-body">
@@ -11,17 +11,6 @@
           id="form-container"
           class=" adding">
       {% csrf_token %}
-      {% for field in form.visible_fields %}
-        <div class="row g-3 align-items-center pb-1">
-          <div class="col-auto">
-            <label for="{{ field.id_for_label }}">
-              {{ field.label }}
-              {% if field.field.required %}<span class="required text-danger">*</span>{% endif %}
-            </label>
-          </div>
-          <div class="col-auto">{{ field|addclass:'form-control' }}</div>
-        </div>
-      {% endfor %}
       {{ formset.management_form }}
       <div class="table-responsive">
         <link rel="stylesheet" href="{% static "css/form_table.css" %}"/>
@@ -37,12 +26,10 @@
           <button id="remove-form" type="button" class="btn btn-danger">-</button>
           <button id="submit-form"
                   type="submit"
-                  class="btn btn-primary position-absolute end-0">
-              Добавить
-          </button>
+                  class="btn btn-primary position-absolute end-0">Добавить в тек. заказ</button>
         </div>
       </div>
     </form>
   </div>
-  <script src="{% static 'js/form_select2.js' %}"></script>
+  <script src="{% static 'js/inventory/free_order.js' %}"></script>
 {% endblock content %}
