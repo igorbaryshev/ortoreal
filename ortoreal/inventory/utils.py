@@ -51,7 +51,7 @@ def is_prosthetist(f):
     return wrapper
 
 
-def recalc_reserves(part):
+def recalc_reserves(part, quantity=None):
     """
     Пересчитать резервы для модели комплектующей.
     """
@@ -77,6 +77,8 @@ def recalc_reserves(part):
     unused_items = Item.objects.filter(
         job=None, reserved=None, warehouse__isnull=False, part=part
     ).order_by("-warehouse", "date")
+    if quantity is not None:
+        unused_items = unused_items[:quantity]
     batch_update = []
     i = 0
     j = 0
