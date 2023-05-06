@@ -10,6 +10,7 @@ p {
 th:not(.fixed-width) {
     width: 140px;
 }
+
 .fixed-width {
     width: auto;
 }

@@ -2,8 +2,8 @@ from django.conf import settings
 
 import django_tables2 as tables
 
-from inventory.utils import dec2pre
 from inventory.models import InventoryLog, Item
+from inventory.utils import dec2pre
 
 TD_END = {
     "td": {
@@ -71,7 +71,7 @@ class InventoryLogsTable(tables.Table):
         model = InventoryLog
         row_attrs = {
             "data-href": lambda record: record.get_absolute_url,
-            "style": "cursor: pointer;"
+            "style": "cursor: pointer;",
         }
         sequence = (
             "id",
@@ -89,6 +89,9 @@ class InventoryLogsTable(tables.Table):
 
 
 class InventoryLogItemsTable(tables.Table):
+    def render_warehouse(self, record):
+        return record.get_warehouse_display()
+
     class Meta:
         model = Item
         template_name = "django_tables2/bootstrap5.html"

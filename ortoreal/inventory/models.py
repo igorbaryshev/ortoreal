@@ -1,8 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.urls import reverse
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from clients.models import Client, Job
 
@@ -32,7 +32,7 @@ class Vendor(models.Model):
         verbose_name_plural = "Производители/поставщики"
 
     def __str__(self):
-        return self.name
+        return f"{self.name} {self.id}"
 
 
 class Part(models.Model):
@@ -64,13 +64,13 @@ class Part(models.Model):
 
     @property
     def quantity_s1(self):
-        return f"{self.items.filter(warehouse='s1', job=None).count()}"
+        return f"{self.items.filter(warehouse=Item.Warehouse.S1, job=None).count()}"
 
     quantity_s1.fget.short_description = "Кол-во(С1)"
 
     @property
     def quantity_s2(self):
-        return f"{self.items.filter(warehouse='s2', job=None).count()}"
+        return f"{self.items.filter(warehouse=Item.Warehouse.S2, job=None).count()}"
 
     quantity_s2.fget.short_description = "Кол-во(С2)"
 
@@ -80,7 +80,7 @@ class Part(models.Model):
         Кол-во комплектующих, которые
         пришли на склад, и не взяты в работу.
         """
-        total = self.items.filter(job=None).exclude(warehouse="").count()
+        total = self.items.filter(job=None, warehouse__isnull=False).count()
         return f"{total}"
 
     quantity_total.fget.short_description = "Кол-во"
@@ -90,7 +90,7 @@ class Part(models.Model):
         return [f.verbose_name for f in cls._meta.fields if f.name != "units"]
 
     class Meta:
-        verbose_name = "модель комплектующего"
+        verbose_name = "модель комплектующей"
         verbose_name_plural = "Номенклатура"
 
     def __str__(self) -> str:
@@ -98,9 +98,9 @@ class Part(models.Model):
 
 
 class Item(models.Model):
-    class Warehouse(models.TextChoices):
-        S1 = "s1", _("Склад 1")
-        S2 = "s2", _("Склад 2")
+    class Warehouse(models.IntegerChoices):
+        S1 = 1, _("Склад 1")
+        S2 = 2, _("Склад 2")
 
     part = models.ForeignKey(
         Part,
@@ -110,9 +110,9 @@ class Item(models.Model):
         blank=False,
         null=False,
     )
-    date_added = models.DateField("Дата", default=timezone.now)
-    warehouse = models.CharField(
-        "Склад", max_length=16, choices=Warehouse.choices, blank=True
+    date = models.DateField("Дата", default=timezone.now)
+    warehouse = models.PositiveSmallIntegerField(
+        "Склад", blank=True, null=True, choices=Warehouse.choices
     )
     job = models.ForeignKey(
         Job,
@@ -144,8 +144,8 @@ class Item(models.Model):
         return [f.verbose_name for f in cls._meta.fields]
 
     class Meta:
-        verbose_name = "Комплектующее на складе"
-        verbose_name_plural = "Комплектующие на складе"
+        verbose_name = "Комплектующая"
+        verbose_name_plural = "Комплектующие"
 
     def __str__(self):
         return self.part.__str__()
@@ -171,21 +171,18 @@ class ProsthesisModel(models.Model):
 
 
 class InventoryLog(models.Model):
-    class PartialLogAction(models.TextChoices):
-        EMPTY = "", _("---выбрать---")
-        RETURN = "RETURN", _("Возврат")
-        TAKE = "TAKE", _("Расход")
-
-    class LogAction(models.TextChoices):
+    class Operation(models.TextChoices):
         EMPTY = "", _("---выбрать---")
         RECEPTION = "RECEPTION", _("Приход")
         RETURN = "RETURN", _("Возврат")
         TAKE = "TAKE", _("Расход")
 
     operation = models.CharField(
-        "Операция", max_length=32, choices=LogAction.choices
+        "Операция", max_length=32, choices=Operation.choices
     )
-    items = models.ManyToManyField(Item, verbose_name="Комплектующие")
+    items = models.ManyToManyField(
+        Item, verbose_name="Комплектующие", related_name="logs"
+    )
     job = models.ForeignKey(
         Job,
         verbose_name="Клиент",
