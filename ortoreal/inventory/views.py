@@ -307,13 +307,16 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 # партия резервов на массовое обновление
                 batch_reserved = []
                 formset_gen = (
-                    x for x in formset if x.cleaned_data["quantity"] > 0
+                    x
+                    for x in formset
+                    if x.cleaned_data["quantity"]
+                    and x.cleaned_data["quantity"] > 0
                 )
                 for formset_form in formset_gen:
                     quantity = formset_form.cleaned_data["quantity"]
                     part_id = formset_form.cleaned_data["part_id"]
                     part = get_object_or_404(Part, id=part_id)
-                    parts.append(part)
+                    parts.append((part, quantity))
                     # срезаем кол-во которое нужно вернуть
                     items = job_items.filter(part=part)[:quantity]
                     log = InventoryLog(
@@ -338,8 +341,8 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 if batch_reserved:
                     Item.objects.bulk_update(batch_reserved, ["reserved"])
                 # пересчитываем резервы для возвращённых моделей комплектующих
-                for part in parts:
-                    recalc_reserves(part)
+                for part, quantity in parts:
+                    recalc_reserves(part, quantity)
 
                 return redirect("inventory:logs")
 
