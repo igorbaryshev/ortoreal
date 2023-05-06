@@ -78,6 +78,7 @@ class ItemAdmin(admin.ModelAdmin):
         "job",
         "reserved",
         "date",
+        "order",
     )
     list_display_links = list_display
     search_fields = ("part__vendor_code", "part__name")

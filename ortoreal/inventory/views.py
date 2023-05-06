@@ -39,7 +39,7 @@ from inventory.tables import (
     OrderTable,
     VendorOrderTable,
 )
-from inventory.utils import generate_zip, is_prosthetist
+from inventory.utils import generate_zip, is_prosthetist, recalc_reserves
 from users.forms import ProsthetistJobsForm
 
 PARTS_PER_PAGE = 30
@@ -106,7 +106,7 @@ class AddItemsView(LoginRequiredMixin, View):
         formset = ItemAddFormSet(request.POST, prefix="item")
         if form.is_valid() and formset.is_valid() and formset.forms:
             date = form.cleaned_data["date"]
-            operation = InventoryLog.LogAction.RECEPTION
+            operation = InventoryLog.Operation.RECEPTION
             comment = form.cleaned_data["comment"]
             # фильтр: не назначен склад, не в текущем заказе,
             # сортировка по дате резерва, без резерва - в последнюю очередь
@@ -199,7 +199,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 )
                 if formset.is_valid():
                     comment = form.cleaned_data["comment"]
-                    operation = "TAKE"
+                    operation = InventoryLog.Operation.TAKE
                     batch_items = []
                     # записываем комплектующие, чтобы избавиться от повторов
                     parts = []
@@ -295,70 +295,53 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                         }
                     )
             elif formset.is_valid():
-                job_items = job.items.order_by("-date", "-id")
+                # возвращаем в приоритете самые новые со склада 1
+                job_items = job.items.order_by("warehouse", "-date", "-id")
                 comment = form.cleaned_data["comment"]
-                operation = "RETURN"
+                operation = InventoryLog.Operation.RETURN
+                # сюда записываем какие модели комплектующих были возвращены
+                parts = []
+                batch_logs = []
+                # партия возвращаемых на массовое обновление
                 batch_items = []
+                # партия резервов на массовое обновление
+                batch_reserved = []
                 formset_gen = (
                     x for x in formset if x.cleaned_data["quantity"] > 0
                 )
                 for formset_form in formset_gen:
                     quantity = formset_form.cleaned_data["quantity"]
+                    part_id = formset_form.cleaned_data["part_id"]
+                    part = get_object_or_404(Part, id=part_id)
+                    parts.append(part)
+                    # срезаем кол-во которое нужно вернуть
+                    items = job_items.filter(part=part)[:quantity]
                     log = InventoryLog(
                         operation=operation,
                         job=job,
                         prosthetist=request.user,
                         comment=comment,
                     )
-                    part_id = formset_form.cleaned_data["part_id"]
-                    part = get_object_or_404(Part, id=part_id)
-                    items = list(job_items.filter(part=part)[:quantity])
-                    # т.к. возвращаем самые новые, из них поставим
-                    # в начало самые старые по возможности со склада 2
-                    # для заполнения текущих резервов
-                    items.sort(
-                        key=lambda x: (
-                            x.warehouse,
-                            -int(x.date.strftime("%Y%m%d%H%M%S")),
-                            -x.id,
-                        ),
-                        reverse=True,
-                    )
-                    # находим ещё не взятые резервы других работ
-                    # и сортируем по складу, если уже на складе,
-                    # а те, что находятся в текущем заказе,
-                    # потом удалим из заказа, чтобы не заказывать лишнее
-                    replace_items = (
-                        Item.objects.filter(
-                            job=None, reserved__isnull=False, part=part
-                        )
-                        .exclude(reserved=job)
-                        .order_by("reserved__date", "warehouse", "id")[
-                            :quantity
-                        ]
-                    )
-                    i = 0
-                    j = 0
-                    while i < len(replace_items) and i < len(items):
-                        items[i].reserved = replace_items[i].reserved
-                        items[i].save()
-                        replace_items[i].reserved = None
-                        replace_items[i].save()
-                        i += 1
-                    for j in range(i, len(items)):
-                        items[j].save()
                     log.save()
                     log = InventoryLog.objects.get(id=log.id)
                     log.items.set(items)
                     log.save()
                     batch_items += list(items)
+                    batch_logs.append(log)
+
                 for item in batch_items:
                     item.job = None
-                    if item.reserved == job:
-                        item.reserved = None
+                    item.reserved = None
+                # сохраняем обновления
                 if batch_items:
                     Item.objects.bulk_update(batch_items, ["job", "reserved"])
-                return redirect("inventory:nomenclature")
+                if batch_reserved:
+                    Item.objects.bulk_update(batch_reserved, ["reserved"])
+                # пересчитываем резервы для возвращённых моделей комплектующих
+                for part in parts:
+                    recalc_reserves(part)
+
+                return redirect("inventory:logs")
 
         context = {"form": form, "taking": False, "formset": formset}
         return render(request, "inventory/take_return_items.html", context)
