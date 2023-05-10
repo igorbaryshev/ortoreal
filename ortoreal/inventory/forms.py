@@ -161,6 +161,25 @@ ItemReturnFormSet = forms.formset_factory(
 )
 
 
+class PickPartForm(forms.Form):
+    part = forms.ModelChoiceField(queryset=Part.objects.all(), label="Артикул")
+    quantity = forms.IntegerField(
+        label="Количество",
+        required=True,
+        min_value=0,
+        initial=0,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        part_field = self.fields["part"]
+        part_field.empty_label = "---выбрать---"
+        part_field.queryset = part_field.queryset.order_by("vendor_code")
+
+
+PickPartsFormSet = forms.formset_factory(form=PickPartForm, extra=1)
+
+
 class PartAddForm(forms.ModelForm):
     class Meta:
         model = Part

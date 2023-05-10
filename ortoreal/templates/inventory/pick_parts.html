@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+{% load user_filters %}
+{% block title %}
+  Свободный заказ
+{% endblock title %}
+{% block content %}
+  <div class="card-body">
+    <form method="post"
+          enctype="multipart/form-data"
+          id="form-container"
+          class=" adding">
+      {% csrf_token %}
+      {% for hidden in form.hidden_fields %}
+        {{ hidden }}
+      {% endfor %}
+      {% for field in form.visible_fields %}
+        <div class="row g-3 align-items-center pb-1">
+          <div class="col-auto">
+            <label for="{{ field.id_for_label }}">
+              {{ field.label }}
+              {% if field.field.required %}<span class="required text-danger">*</span>{% endif %}
+            </label>
+          </div>
+          <div class="col-auto">{{ field|addclass:'form-control' }}</div>
+        </div>
+      {% endfor %}
+      {{ formset.management_form }}
+      <div class="table-responsive">
+        <link rel="stylesheet" href="{% static "css/form_table.css" %}"/>
+        <link rel="stylesheet" href="{% static "css/take_table.css" %}"/>
+        <table class="table table-bordered align-middle">
+          {% include "includes/form_table_head.html" with form=formset.0 %}
+          {% for form in formset %}
+          <tr class="input-row text-center">
+            {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+            {% for field in form.visible_fields %}
+              <td class="item-form {% if field.errors %}alert-td{% endif %}"
+                  title="{% for error in field.errors %}{{ error }}{% if not forloop.last %}&#10;&#013;{% endif %}{% endfor %}">
+                  {{ field }}
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </table>
+        <div class="button-row position-relative">
+          <button id="add-form" type="button" class="btn btn-secondary">+</button>
+          <button id="remove-form" type="button" class="btn btn-danger">-</button>
+          <button id="submit-form"
+                  type="submit"
+                  class="btn btn-primary position-absolute end-0">Добавить в тек. заказ</button>
+        </div>
+      </div>
+    </form>
+  </div>
+  <script src="{% static 'js/inventory/free_order.js' %}"></script>
+{% endblock content %}

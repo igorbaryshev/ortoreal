@@ -27,7 +27,7 @@
         </div>
       {% endfor %}
       {{ formset.management_form }}
-      {% if form.is_valid %}
+      {% if form.is_valid and formset.forms %}
         <hr/>
         <div class="table-responsive">
           <link rel="stylesheet" href="{% static "css/form_table.css" %}"/>

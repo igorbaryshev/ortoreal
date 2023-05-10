@@ -5,10 +5,10 @@ from functools import wraps
 
 from django.contrib.auth import get_user_model
 from django.db.models import Case, F, Q, When
-from django.shortcuts import get_list_or_404, redirect
+from django.shortcuts import get_list_or_404, get_object_or_404, redirect
 from django.utils import timezone
 
-from inventory.models import Item
+from inventory.models import Item, Order
 
 User = get_user_model()
 
@@ -119,3 +119,74 @@ def recalc_reserves(part, quantity=None):
         i += 1
     if batch_update:
         Item.objects.bulk_update(batch_update, ["reserved"])
+
+
+def create_reserve(part, job, quantity):
+    """
+    Зарезервировать комплектующие.
+    """
+    unused_items = (
+        Item.objects.filter(job=None, reserved=None, part=part)
+        .annotate(
+            warehouse_old_new=Case(
+                When(warehouse__isnull=False, then=1),
+                When(order__current=False, then=2),
+                default=3,
+            )
+        )
+        .order_by("warehouse_old_new", "-warehouse", "date")
+    )
+    batch = []
+    if quantity <= unused_items.count():
+        unused_items = unused_items[:quantity]
+        quantity = 0
+    else:
+        quantity -= unused_items.count()
+
+    for item in unused_items:
+        item.reserved = job
+        batch.append(item)
+
+    if batch:
+        Item.objects.bulk_update(batch, ["reserved"])
+
+    # дозаказываем недостающее на складе и в старых заказах
+    if quantity:
+        order = Order.objects.get(current=True)
+        new_items = [Item(reserved=job, order=order) for _ in range(quantity)]
+        Item.objects.bulk_create(new_items)
+
+    # возвращаем кол-во добавленных в новый заказ
+    return quantity
+
+
+def remove_reserve(part, job, quantity):
+    reserved_items = (
+        Item.objects.filter(job=None, reserved=job, part=part)
+        .annotate(
+            new_old_warehouse=Case(
+                When(order__current=True, then=1),
+                When(order__current=False, then=2),
+                default=3,
+            )
+        )
+        .order_by("new_old_warehouse", "warehouse", "-date")
+    )
+    if quantity <= reserved_items.count():
+        reserved_items = reserved_items[:quantity]
+    else:
+        quantity = reserved_items.count()
+
+    batch = []
+    for item in reserved_items:
+        if item.order.current == True:
+            item.delete()
+        else:
+            item.reserved = None
+            batch.append(item)
+
+    if batch:
+        Item.objects.bulk_update(batch, ["reserved"])
+
+    # возвращаем кол-во освобожденных резервов
+    return quantity
