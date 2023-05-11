@@ -64,13 +64,19 @@ class Part(models.Model):
 
     @property
     def quantity_s1(self):
-        return f"{self.items.filter(warehouse=Item.Warehouse.S1, job=None).count()}"
+        quantity = self.items.filter(
+            warehouse=Item.Warehouse.S1, job=None
+        ).count()
+        return f"{quantity}"
 
     quantity_s1.fget.short_description = "Кол-во(С1)"
 
     @property
     def quantity_s2(self):
-        return f"{self.items.filter(warehouse=Item.Warehouse.S2, job=None).count()}"
+        quantity = self.items.filter(
+            warehouse=Item.Warehouse.S2, job=None
+        ).count()
+        return f"{quantity}"
 
     quantity_s2.fget.short_description = "Кол-во(С2)"
 

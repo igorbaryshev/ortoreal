@@ -21,4 +21,5 @@ urlpatterns = [
         views.InventoryLogsDetailView.as_view(),
         name="log_items",
     ),
+    path("pick_parts/", views.PickPartsView.as_view(), name="pick_parts"),
 ]

@@ -31,6 +31,7 @@ from inventory.forms import (
     ItemReturnFormSet,
     ItemTakeFormSet,
     PartAddFormSet,
+    PickPartsFormSet,
 )
 from inventory.models import InventoryLog, Item, Order, Part
 from inventory.tables import (
@@ -39,7 +40,13 @@ from inventory.tables import (
     OrderTable,
     VendorOrderTable,
 )
-from inventory.utils import generate_zip, is_prosthetist, recalc_reserves
+from inventory.utils import (
+    create_reserve,
+    generate_zip,
+    is_prosthetist,
+    recalc_reserves,
+    remove_reserve,
+)
 from users.forms import ProsthetistJobsForm
 
 PARTS_PER_PAGE = 30
@@ -361,6 +368,71 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
             )
             .values("max_parts", "part_id", "part_name", "units")
             .annotate(part=F("part_name"))
+        )
+        return queryset
+
+
+class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View-class выбора комплектующих протезистом и дозаказ недостающих.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist
+
+    def get(self, request, *args, **kwargs):
+        form = InventoryTakeForm(request.user)
+        # formset = PickPartsFormSet()
+        context = {"form": form}
+        return render(request, "inventory/pick_parts.html", context)
+
+    def post(self, request, *args, **kwargs):
+        form = InventoryTakeForm(request.user, request.POST)
+        formset = PickPartsFormSet(request.POST)
+        if form.is_valid():
+            job = form.cleaned_data["job"]
+            queryset = self.get_queryset(job)
+            if not formset.forms:
+                formset = PickPartsFormSet(
+                    None, initial=queryset.values("part", "quantity")
+                )
+            elif formset.is_valid():
+                # записываем модели комплектующих в текущем резерве
+                initial_parts = dict(
+                    Part.objects.filter(items__reserved=job)
+                    .annotate(
+                        quantity=Count("items", filter=Q(items__reserved=job))
+                    )
+                    .order_by("vendor_code")
+                    .values_list("id", "quantity")
+                )
+                parts = []
+                for formset_form in formset:
+                    part = formset_form.cleaned_data["part"]
+                    new_quantity = formset_form.cleaned_data["quantity"]
+                    if part.id in initial_parts:
+                        old_quantity = initial_parts["part"]
+                        if new_quantity > old_quantity:
+                            create_reserve(
+                                part=part,
+                                job=job,
+                                quantity=new_quantity - old_quantity,
+                            )
+                        elif new_quantity < old_quantity:
+                            remove_reserve(
+                                part=part,
+                                job=job,
+                                quantity=old_quantity - new_quantity,
+                            )
+
+                return redirect("inventory:logs")
+
+        context = {"form": form, "formset": formset}
+        return render(request, "inventory/pick_parts.html", context)
+
+    def get_queryset(self, job):
+        queryset = Item.objects.filter(Q(job=job) | Q(reserved=job)).annotate(
+            quantity=Count("part__vendor_code")
         )
         return queryset
 
