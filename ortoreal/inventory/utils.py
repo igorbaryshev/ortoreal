@@ -22,6 +22,24 @@ def dec2pre(value):
     return Decimal(value).quantize(Decimal(".01"))
 
 
+def get_dec_display(value):
+    """
+    Отображение десятичных дробей с пробелами между тысячами и запятой в дроби.
+    """
+    value = dec2pre(value)
+    whole, fraction, *_ = str(value).split(".")
+    number = [fraction, ","]
+    i = len(whole) - 3
+    while i > 0:
+        number.append(whole[i : i + 3])
+        number.append(" ")
+        i -= 3
+    else:
+        number.append(whole[0 : 3 + i])
+    result = "".join(map(str, reversed(number)))
+    return result
+
+
 def generate_zip(files):
     """
     Генератор .zip файла.

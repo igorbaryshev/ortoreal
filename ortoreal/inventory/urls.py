@@ -22,4 +22,6 @@ urlpatterns = [
         name="log_items",
     ),
     path("pick_parts/", views.PickPartsView.as_view(), name="pick_parts"),
+    path("sets/", views.JobSetsView.as_view(), name="job_sets"),
+    path("sets/all/", views.AllJobSetsView.as_view(), name="all_job_sets"),
 ]

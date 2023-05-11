@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 
 from django import forms
 from django.contrib.auth.decorators import login_required
@@ -15,7 +15,8 @@ import django_tables2 as tables
 
 from clients.forms import ClientContactForm, ContactForm
 from clients.models import Client, Comment, Contact, Job
-from clients.tables import ClientPartsTable, ClientsTable
+
+# from clients.tables import ClientPartsTable, ClientsTable
 
 
 @login_required
@@ -81,26 +82,32 @@ def edit_contact(request, pk):
     return render(request, "clients/create_contact.html", context)
 
 
-class ClientListView(
-    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
-):
-    """
-    View-класс клиентов протезиста.
-    """
+# class ClientListView(
+#     LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
+# ):
+#     """
+#     View-класс клиентов протезиста.
+#     """
 
-    table_class = ClientsTable
+#     table_class = ClientsTable
 
-    def test_func(self) -> bool:
-        return self.request.user.is_prosthetist
+#     def test_func(self) -> bool:
+#         return self.request.user.is_prosthetist
 
-    def get_queryset(self) -> QuerySet[Any]:
-        queryset = Job.objects.filter(prosthetist=self.request.user).order_by(
-            "-date"
-        )
-        return queryset
+#     def get_queryset(self) -> QuerySet[Any]:
+#         queryset = Job.objects.filter(prosthetist=self.request.user).order_by(
+#             "-date"
+#         )
+#         return queryset
+
+#     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+#         context = super().get_context_data(**kwargs)
+#         context["title"] = f"{self.request.user}. Клиенты."
+
+#         return context
 
 
-class ClientDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
+class JobDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
     View-класс подробностей о клиенте.
     """
@@ -117,6 +124,27 @@ class ClientDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
                 part_name=F("part__name"),
             ).order_by("vendor_code")
         )
-        context = {"table": table}
+        context = {"table": table, "job": job}
 
         return render(request, "clients/client.html", context)
+
+
+# class AllClientsListView(ClientListView):
+#     """
+#     View-класс всех клиентов для менеджера.
+#     """
+
+#     def test_func(self) -> bool:
+#         return self.request.user.is_manager
+
+#     def get_queryset(self) -> QuerySet[Any]:
+#         queryset = Job.objects.order_by("-date")
+#         return queryset
+
+#     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+#         context = super(tables.SingleTableView, self).get_context_data(
+#             **kwargs
+#         )
+#         context["title"] = "Все клиенты."
+
+#         return context

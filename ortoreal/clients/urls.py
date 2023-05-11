@@ -8,6 +8,7 @@ urlpatterns = [
     path("contacts/", views.contacts, name="contacts"),
     path("contacts/add/", views.add_contact, name="add_contact"),
     path("contacts/edit/<int:pk>", views.edit_contact, name="edit_contact"),
-    path("clients/", views.ClientListView.as_view(), name="clients"),
-    path("clients/<int:pk>/", views.ClientDetailView.as_view(), name="client"),
+    # path("clients/", views.ClientListView.as_view(), name="clients"),
+    path("jobs/<int:pk>/", views.JobDetailView.as_view(), name="job"),
+    # path("jobs/all/", views.AllClientsListView.as_view(), name="all_jobs"),
 ]

@@ -39,6 +39,7 @@ from inventory.models import InventoryLog, Item, Order, Part, Prosthesis
 from inventory.tables import (
     InventoryLogItemsTable,
     InventoryLogsTable,
+    JobSetsTable,
     OrderTable,
     VendorOrderTable,
 )
@@ -646,3 +647,49 @@ class InventoryLogsDetailView(tables.SingleTableView):
     def get_queryset(self) -> QuerySet[Any]:
         queryset = self.get_log().items.order_by("-id")
         return queryset
+
+
+class JobSetsView(
+    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
+):
+    """
+    View-класс комплектов клиентов протезиста.
+    """
+
+    table_class = JobSetsTable
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Job.objects.filter(prosthetist=self.request.user).order_by(
+            "-date"
+        )
+        return queryset
+
+    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context["title"] = f"{self.request.user}. Клиенты."
+
+        return context
+
+
+class AllJobSetsView(JobSetsView):
+    """
+    View-класс комплектов всех клиентов для менеджера.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_manager
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Job.objects.order_by("-date")
+        return queryset
+
+    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+        context = super(tables.SingleTableView, self).get_context_data(
+            **kwargs
+        )
+        context["title"] = "Все клиенты."
+
+        return context

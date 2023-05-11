@@ -8,15 +8,18 @@ User = get_user_model()
 
 @admin.register(User)
 class MyUserAdmin(UserAdmin):
-    list_display = ("name", "is_prosthetist", "id")
     fieldsets = (
         (None, {"fields": ("username", "password")}),
-        (_("Personal info"), {"fields": ("last_name", "first_name", "surname", "email")}),
+        (
+            _("Personal info"),
+            {"fields": ("last_name", "first_name", "surname", "email")},
+        ),
         (
             _("Permissions"),
             {
                 "fields": (
                     "is_prosthetist",
+                    "is_manager",
                     "is_active",
                     "is_staff",
                     "is_superuser",
@@ -26,6 +29,15 @@ class MyUserAdmin(UserAdmin):
             },
         ),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
+    )
+    list_display = ("name", "is_prosthetist", "is_manager", "id")
+    list_filter = (
+        "is_prosthetist",
+        "is_manager",
+        "is_staff",
+        "is_superuser",
+        "is_active",
+        "groups",
     )
 
     def name(self, obj):

@@ -58,17 +58,23 @@
                 Операции
               </a>
             </li>
-            {% if user.is_prosthetist %}
-            <li class="nav-item">
-              <a class="nav-link text-wrap{% if view_name == 'clients:clients' %} active{% endif %}"
-                 href="{% url 'clients:clients' %}">
-                Мои клиенты
+            {% if user.is_manager or user.is_prosthetist %}
+              <li class="nav-item">
+                <a class="nav-link text-wrap{% if view_name == 'inventory:all_job_sets' or 'inventory:job_sets' %} active{% endif %}"
+                {% if user.is_manager %}
+                   href="{% url 'inventory:all_job_sets' %}">
+                {% elif user.is_prosthetist %}
+                  href="{% url 'inventory:all_job_sets' %}">
+                {% endif %}
+                Комплектующие
               </a>
             </li>
+          {% endif %}
+          {% if user.is_prosthetist %}
             <li class="nav-item">
               <a class="nav-link text-wrap{% if view_name == 'inventory:pick_parts' %} active{% endif %}"
                  href="{% url 'inventory:pick_parts' %}">
-                Комплектации
+                Выбор комплектации
               </a>
             </li>
             <li class="nav-item">
@@ -83,8 +89,8 @@
                 </a>
               </div>
             </li>
-            {% endif %}
-            {% if user.is_authenticated %}
+          {% endif %}
+          {% if user.is_authenticated %}
             {% comment %}
             <li class="nav-item"> 
               <a class="nav-link {% if view_name == 'posts:post_create' %} active {% endif %}" href="{% url 'posts:post_create' %}">
@@ -92,7 +98,6 @@
               </a>
             </li>
             {% endcomment %}
-
             <li class="nav-item">
               <a class="nav-link disabled">{{ user }}</a>
               {% comment %}
@@ -124,9 +129,9 @@
             </li>
             {% endcomment %}
           {% endif %}
-          </ul>
-        </div>
-      {% endwith %}
-    </div>
-  </nav>
+        </ul>
+      </div>
+    {% endwith %}
+  </div>
+</nav>
 </header>
