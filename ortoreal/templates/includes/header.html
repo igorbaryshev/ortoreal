@@ -60,7 +60,19 @@
             </li>
             {% if user.is_prosthetist %}
             <li class="nav-item">
-              <div class="btn-group" role="group" aria-label="">
+              <a class="nav-link text-wrap{% if view_name == 'clients:clients' %} active{% endif %}"
+                 href="{% url 'clients:clients' %}">
+                Мои клиенты
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link text-wrap{% if view_name == 'inventory:pick_parts' %} active{% endif %}"
+                 href="{% url 'inventory:pick_parts' %}">
+                Комплектации
+              </a>
+            </li>
+            <li class="nav-item">
+              <div class="btn-group" role="group">
                 <a class="btn btn-warning{% if view_name == 'inventory:take_items' %} active{% endif %}"
                    href="{% url 'inventory:take_items' %}">
                   Взять

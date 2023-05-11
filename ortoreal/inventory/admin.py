@@ -101,4 +101,4 @@ class VendorAdmin(admin.ModelAdmin):
 
 @admin.register(Prosthesis)
 class ProsthesisAdmin(admin.ModelAdmin):
-    list_display = ("number", "kind", "name", "price")
+    list_display = ("number", "kind", "name", "price", "region")

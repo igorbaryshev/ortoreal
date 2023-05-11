@@ -30,10 +30,12 @@ from inventory.forms import (
     ItemAddFormSet,
     ItemReturnFormSet,
     ItemTakeFormSet,
+    JobSelectForm,
     PartAddFormSet,
     PickPartsFormSet,
+    ProsthesisSelectForm,
 )
-from inventory.models import InventoryLog, Item, Order, Part
+from inventory.models import InventoryLog, Item, Order, Part, Prosthesis
 from inventory.tables import (
     InventoryLogItemsTable,
     InventoryLogsTable,
@@ -47,7 +49,6 @@ from inventory.utils import (
     recalc_reserves,
     remove_reserve,
 )
-from users.forms import ProsthetistJobsForm
 
 PARTS_PER_PAGE = 30
 
@@ -109,8 +110,8 @@ class AddItemsView(LoginRequiredMixin, View):
         return render(request, "inventory/add_items.html", context)
 
     def post(self, request, *args, **kwargs):
-        form = InventoryAddForm(request.POST, prefix="entry")
-        formset = ItemAddFormSet(request.POST, prefix="item")
+        form = InventoryAddForm(data=request.POST, prefix="entry")
+        formset = ItemAddFormSet(data=request.POST, prefix="item")
         if form.is_valid() and formset.is_valid() and formset.forms:
             date = form.cleaned_data["date"]
             operation = InventoryLog.Operation.RECEPTION
@@ -120,18 +121,17 @@ class AddItemsView(LoginRequiredMixin, View):
             ordered_items = Item.objects.filter(
                 warehouse="", order__current=False
             ).order_by(F("reserved__date").asc(nulls_last=True), F("id").asc())
-            # оставляем только приходы с кол-вом > 0
-            formset_gen = (
-                x for x in formset if x.cleaned_data["quantity"] > 0
-            )
-            for formset_form in formset_gen:
+            for formset_form in formset:
+                quantity = formset_form.cleaned_data["quantity"]
+                # Если кол-во не указано или <= 0, то пропустить
+                if quantity is None or quantity <= 0:
+                    continue
                 log = InventoryLog(
                     operation=operation,
                     comment=comment,
                 )
                 log.save()
                 log = InventoryLog.objects.get(id=log.id)
-                quantity = formset_form.cleaned_data["quantity"]
                 part = formset_form.cleaned_data["part"]
                 warehouse = formset_form.cleaned_data["warehouse"]
                 matching_ordered = ordered_items.filter(part=part)
@@ -187,13 +187,12 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get(self, request, *args, **kwargs):
         form = InventoryTakeForm(request.user)
-        formset = ItemTakeFormSet()
-        context = {"form": form, "taking": True, "formset": formset}
+        context = {"form": form, "taking": True}
         return render(request, "inventory/take_return_items.html", context)
 
     def post(self, request, *args, **kwargs):
         form = InventoryTakeForm(request.user, request.POST)
-        formset = ItemTakeFormSet(request.POST, prefix="item")
+        formset = ItemTakeFormSet(data=request.POST, prefix="item")
         if form.is_valid():
             job = form.cleaned_data["job"]
             # queryset для выбора комплектующих
@@ -213,16 +212,15 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                     items_filter = Q(job=None) & (
                         Q(reserved=job) | Q(reserved=None)
                     )
-                    # берём только первые не повторные детали с кол-вом > 0
-                    formset_gen = (
-                        x
-                        for x in formset
-                        if x.cleaned_data["part"] not in parts
-                        and x.cleaned_data["quantity"] > 0
-                    )
-                    for formset_form in formset_gen:
+                    for formset_form in formset:
                         quantity = formset_form.cleaned_data["quantity"]
+                        # Если кол-во не указано или <= 0, то пропустить
+                        if quantity is None or quantity <= 0:
+                            continue
                         part = formset_form.cleaned_data["part"]
+                        # Если модель комплектующего повторилась, то пропустить
+                        if part in parts:
+                            continue
                         parts.append(part)
                         # фильтруем: в первую очередь самые старые со склада 2
                         items = Item.objects.filter(
@@ -313,14 +311,11 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 batch_items = []
                 # партия резервов на массовое обновление
                 batch_reserved = []
-                formset_gen = (
-                    x
-                    for x in formset
-                    if x.cleaned_data["quantity"]
-                    and x.cleaned_data["quantity"] > 0
-                )
-                for formset_form in formset_gen:
+                for formset_form in formset:
                     quantity = formset_form.cleaned_data["quantity"]
+                    # Если кол-во не указано или <= 0, то пропустить
+                    if quantity is None or quantity <= 0:
+                        continue
                     part_id = formset_form.cleaned_data["part_id"]
                     part = get_object_or_404(Part, id=part_id)
                     parts.append((part, quantity))
@@ -381,58 +376,71 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
         return self.request.user.is_prosthetist
 
     def get(self, request, *args, **kwargs):
-        form = InventoryTakeForm(request.user)
-        # formset = PickPartsFormSet()
-        context = {"form": form}
+        client_form = JobSelectForm(user=request.user)
+        context = {"forms": [client_form]}
         return render(request, "inventory/pick_parts.html", context)
 
     def post(self, request, *args, **kwargs):
-        form = InventoryTakeForm(request.user, request.POST)
-        formset = PickPartsFormSet(request.POST)
-        if form.is_valid():
-            job = form.cleaned_data["job"]
+        client_form = JobSelectForm(user=request.user, data=request.POST)
+        prosthesis_form = ProsthesisSelectForm(data=request.POST or None)
+        formset = PickPartsFormSet(data=request.POST)
+        if client_form.is_valid():
+            job = client_form.cleaned_data["job"]
             queryset = self.get_queryset(job)
             if not formset.forms:
+                initial = {"prosthesis": job.prosthesis}
+                prosthesis_form = ProsthesisSelectForm(
+                    initial=initial, job=job
+                )
                 formset = PickPartsFormSet(
                     None, initial=queryset.values("part", "quantity")
                 )
-            elif formset.is_valid():
+            elif prosthesis_form.is_valid() and formset.is_valid():
                 # записываем модели комплектующих в текущем резерве
-                initial_parts = dict(
-                    Part.objects.filter(items__reserved=job)
-                    .annotate(
-                        quantity=Count("items", filter=Q(items__reserved=job))
-                    )
-                    .order_by("vendor_code")
-                    .values_list("id", "quantity")
-                )
+                initial_parts = dict(queryset.values_list("id", "quantity"))
                 parts = []
                 for formset_form in formset:
                     part = formset_form.cleaned_data["part"]
-                    new_quantity = formset_form.cleaned_data["quantity"]
+                    if part in parts:
+                        continue
+                    parts.append(part)
+                    quantity = formset_form.cleaned_data["quantity"]
                     if part.id in initial_parts:
-                        old_quantity = initial_parts["part"]
-                        if new_quantity > old_quantity:
-                            create_reserve(
-                                part=part,
-                                job=job,
-                                quantity=new_quantity - old_quantity,
+                        old_quantity = initial_parts[part.id]
+                        # если указанное кол-во больше исходного,
+                        # то выделяем резерв
+                        if quantity > old_quantity:
+                            create_reserve(part, job, quantity - old_quantity)
+                        # если меньше, возвращаем и пересчитываем резервы
+                        elif quantity < old_quantity:
+                            # кол-во комплектующих, которые нужно пересчитать
+                            recalc_n = remove_reserve(
+                                part, job, old_quantity - quantity
                             )
-                        elif new_quantity < old_quantity:
-                            remove_reserve(
-                                part=part,
-                                job=job,
-                                quantity=old_quantity - new_quantity,
-                            )
+                            recalc_reserves(part, recalc_n)
+                    elif quantity:
+                        create_reserve(part, job, quantity)
+
+                prosthesis = prosthesis_form.cleaned_data["prosthesis"]
+                job.prosthesis = prosthesis
+                job.save()
 
                 return redirect("inventory:logs")
 
-        context = {"form": form, "formset": formset}
+        context = {
+            "forms": [client_form, prosthesis_form],
+            "formset": formset,
+        }
         return render(request, "inventory/pick_parts.html", context)
 
     def get_queryset(self, job):
-        queryset = Item.objects.filter(Q(job=job) | Q(reserved=job)).annotate(
-            quantity=Count("part__vendor_code")
+        queryset = (
+            Part.objects.filter(items__reserved=job)
+            .annotate(
+                quantity=Count("items", filter=Q(items__reserved=job)),
+                part=F("pk"),
+            )
+            .order_by("vendor_code")
         )
         return queryset
 
@@ -452,12 +460,12 @@ class FreeOrderItemsView(LoginRequiredMixin, View):
         if formset.forms and formset.is_valid():
             order = get_object_or_404(Order, current=True)
             batch_items = []
-            formset_gen = (
-                x for x in formset if x.cleaned_data["quantity"] > 0
-            )
-            for formset_form in formset_gen:
-                part = formset_form.cleaned_data["part"]
+            for formset_form in formset:
                 quantity = formset_form.cleaned_data["quantity"]
+                # Если кол-во не указано или <= 0, то пропустить
+                if quantity is None or quantity <= 0:
+                    continue
+                part = formset_form.cleaned_data["part"]
                 batch_items += [
                     Item(part=part, order=order) for _ in range(quantity)
                 ]
