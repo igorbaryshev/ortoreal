@@ -2,7 +2,7 @@
 {% load static %}
 {% load user_filters %}
 {% block title %}
-  Свободный заказ
+  Выбрать комплектацию
 {% endblock title %}
 {% block content %}
   <div class="card-body">
@@ -11,19 +11,18 @@
           id="form-container"
           class=" adding">
       {% csrf_token %}
-      {% for hidden in form.hidden_fields %}
-        {{ hidden }}
-      {% endfor %}
-      {% for field in form.visible_fields %}
-        <div class="row g-3 align-items-center pb-1">
-          <div class="col-auto">
-            <label for="{{ field.id_for_label }}">
-              {{ field.label }}
-              {% if field.field.required %}<span class="required text-danger">*</span>{% endif %}
-            </label>
+      {% for form in forms %}
+        {% for field in form %}
+          <div class="row g-3 align-items-center pb-1">
+            <div class="col-auto">
+              <label for="{{ field.id_for_label }}">
+                {{ field.label }}
+                {% if field.field.required %}<span class="required text-danger">*</span>{% endif %}
+              </label>
+            </div>
+            <div class="col-auto">{{ field|addclass:'form-control' }}</div>
           </div>
-          <div class="col-auto">{{ field|addclass:'form-control' }}</div>
-        </div>
+        {% endfor %}
       {% endfor %}
       {{ formset.management_form }}
       <div class="table-responsive">
@@ -43,13 +42,15 @@
           </tr>
           {% endfor %}
         </table>
+        {% if formset.forms %}
         <div class="button-row position-relative">
           <button id="add-form" type="button" class="btn btn-secondary">+</button>
           <button id="remove-form" type="button" class="btn btn-danger">-</button>
           <button id="submit-form"
                   type="submit"
-                  class="btn btn-primary position-absolute end-0">Добавить в тек. заказ</button>
+                  class="btn btn-primary position-absolute end-0">Сохранить комплектацию</button>
         </div>
+        {% endif %}
       </div>
     </form>
   </div>

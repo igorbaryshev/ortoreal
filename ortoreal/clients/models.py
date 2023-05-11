@@ -1,10 +1,11 @@
-from django.db import models
-from django.utils.translation import gettext_lazy as _
 from django.contrib.auth import get_user_model
+from django.db import models
+from django.db.models import CharField, Value
+from django.db.models.functions import Cast, Concat, Substr
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
-from django.db.models.functions import Concat, Substr, Cast
-from django.db.models import CharField, Value
+from django.utils.translation import gettext_lazy as _
 
 from phonenumber_field.modelfields import PhoneNumberField
 
@@ -195,10 +196,14 @@ class Job(models.Model):
         "inventory.Prosthesis",
         verbose_name="Протез",
         on_delete=models.SET_NULL,
+        blank=True,
         null=True,
     )
     client = models.ForeignKey(
-        Client, verbose_name="Клиент", on_delete=models.CASCADE
+        Client,
+        verbose_name="Клиент",
+        on_delete=models.CASCADE,
+        related_name="jobs",
     )
     prosthetist = models.ForeignKey(
         User,
@@ -237,3 +242,6 @@ class Job(models.Model):
         if not self.statuses.filter(name=self.status).exists():
             new_status = Status(name=self.status, job=self)
             new_status.save()
+
+    def get_absolute_url(self):
+        return reverse("inventory:pick_parts")

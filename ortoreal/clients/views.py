@@ -1,13 +1,21 @@
-from clients.models import Client, Comment, Contact
+from typing import Any
+
 from django import forms
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render
-from django.core.paginator import Paginator
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core import serializers
+from django.core.paginator import Paginator
+from django.db.models import Count, F, Q
 from django.db.models.functions import Concat
-from django.db import models
-from clients.forms import ContactForm, ClientContactForm
-from django.shortcuts import get_object_or_404
+from django.db.models.query import QuerySet
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views import View
+
+import django_tables2 as tables
+
+from clients.forms import ClientContactForm, ContactForm
+from clients.models import Client, Comment, Contact, Job
+from clients.tables import ClientPartsTable, ClientsTable
 
 
 @login_required
@@ -71,3 +79,44 @@ def edit_contact(request, pk):
     }
 
     return render(request, "clients/create_contact.html", context)
+
+
+class ClientListView(
+    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
+):
+    """
+    View-класс клиентов протезиста.
+    """
+
+    table_class = ClientsTable
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Job.objects.filter(prosthetist=self.request.user).order_by(
+            "-date"
+        )
+        return queryset
+
+
+class ClientDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View-класс подробностей о клиенте.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist
+
+    def get(self, request, pk):
+        job = get_object_or_404(Job, pk=pk)
+        table = ClientPartsTable(
+            job.items.annotate(
+                item_count=Count("part"),
+                vendor_code=F("part__vendor_code"),
+                part_name=F("part__name"),
+            ).order_by("vendor_code")
+        )
+        context = {"table": table}
+
+        return render(request, "clients/client.html", context)

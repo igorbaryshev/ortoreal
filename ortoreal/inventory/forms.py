@@ -3,7 +3,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from clients.models import Client, Job
-from inventory.models import InventoryLog, Item, Part
+from inventory.models import InventoryLog, Item, Part, Prosthesis
 
 
 class DatePicker(forms.DateInput):
@@ -161,7 +161,54 @@ ItemReturnFormSet = forms.formset_factory(
 )
 
 
+class JobSelectForm(forms.Form):
+    """
+    Форма выбора клиента для страницы выбора комплектации.
+    """
+
+    job = forms.ModelChoiceField(
+        queryset=Job.objects.none(),
+        label="Клиент",
+        widget=forms.Select(
+            attrs={
+                "onchange": "clearFormSet(); this.form.submit();",
+            }
+        ),
+    )
+
+    def __init__(self, user, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.fields["job"].queryset = Job.objects.filter(
+            prosthetist=user
+        ).order_by("-client")
+
+        self.fields["job"].empty_label = "---выбрать---"
+
+
+class ProsthesisSelectForm(forms.ModelForm):
+    """
+    Форма выбора протеза.
+    """
+
+    class Meta:
+        model = Job
+        fields = ("prosthesis",)
+
+    def __init__(self, job=None, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if job is not None:
+            region = job.client.region
+            self.fields["prosthesis"].queryset = Prosthesis.objects.filter(
+                region=region
+            ).order_by("name")
+            self.fields["prosthesis"].empty_label = "---выбрать---"
+
+
 class PickPartForm(forms.Form):
+    """
+    Форма выбора комплектующей в протез.
+    """
+
     part = forms.ModelChoiceField(queryset=Part.objects.all(), label="Артикул")
     quantity = forms.IntegerField(
         label="Количество",

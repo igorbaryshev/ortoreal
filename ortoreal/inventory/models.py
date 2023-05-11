@@ -157,25 +157,6 @@ class Item(models.Model):
         return self.part.__str__()
 
 
-class ProsthesisModel(models.Model):
-    class Region(models.TextChoices):
-        MOSCOW = "Moscow", _("Москва")
-        MOSCOW_REGION = "Moscow region", _("Московская область")
-
-    name = models.CharField("Название", max_length=1024)
-    price = models.DecimalField("Цена", max_digits=11, decimal_places=2)
-    #    parts = models.ManyToManyField(Item, verbose_name="Комплектующие")
-    region = models.CharField("Регион", max_length=128, choices=Region.choices)
-
-    #
-    class Meta:
-        verbose_name = "Модель протеза"
-        verbose_name_plural = "Модели протезов"
-
-    def __str__(self) -> str:
-        return self.name
-
-
 class InventoryLog(models.Model):
     class Operation(models.TextChoices):
         EMPTY = "", _("---выбрать---")
@@ -218,10 +199,15 @@ class InventoryLog(models.Model):
 
 
 class Prosthesis(models.Model):
+    class Region(models.TextChoices):
+        MOSCOW = "Moscow", _("Москва")
+        MOSCOW_REGION = "Moscow region", _("Московская область")
+
     number = models.CharField("Номер изделия", max_length=150, unique=True)
     kind = models.CharField("Вид", max_length=1024, blank=True)
     name = models.CharField("Наименование", max_length=1024, blank=True)
     price = models.DecimalField("Стоимость", max_digits=11, decimal_places=2)
+    region = models.CharField("Регион", max_length=128, choices=Region.choices)
 
     class Meta:
         verbose_name = "Протез"
