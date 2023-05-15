@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}
-  {{ part }}
+  {{ title }} {{ date|date:"d.m.Y" }}
 {% endblock title %}
 {% block static %}
   <link rel="stylesheet" href="{% static "css/table.css" %}"/>
@@ -9,6 +9,7 @@
 {% block content %}
   {% load django_tables2 %}
   <div class="card-body">
+    <h2>{{ title }} {{ date|date:"d.m.Y" }}</h2>
     {% render_table table %}
     {% if current %}
       <form method="post" class="d-flex justify-content-around">

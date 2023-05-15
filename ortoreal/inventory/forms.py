@@ -202,6 +202,7 @@ class ProsthesisSelectForm(forms.ModelForm):
                 region=region
             ).order_by("name")
             self.fields["prosthesis"].empty_label = "---выбрать---"
+            self.fields["prosthesis"].initial = job.prosthesis
 
 
 class PickPartForm(forms.Form):

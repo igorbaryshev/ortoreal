@@ -1,3 +1,5 @@
+from typing import Iterable, Optional
+
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.urls import reverse
@@ -18,10 +20,16 @@ class Order(models.Model):
         verbose_name_plural = "Заказы"
 
     def __str__(self) -> str:
-        current = "закрыт"
+        current = "оформлен"
         if self.current:
             current = "текущий"
         return f"Заказ {self.id} ({current})"
+
+    def get_absolute_url(self):
+        url = reverse("inventory:order_by_id", kwargs={"pk": self.pk})
+        if self.current:
+            url = reverse("inventory:order")
+        return url
 
 
 class Vendor(models.Model):
@@ -32,7 +40,7 @@ class Vendor(models.Model):
         verbose_name_plural = "Производители/поставщики"
 
     def __str__(self):
-        return f"{self.name} {self.id}"
+        return f"{self.name}"
 
 
 class Part(models.Model):
@@ -61,6 +69,12 @@ class Part(models.Model):
         null=True,
     )
     note = models.CharField("Примечание", max_length=1024, blank=True)
+    minimum_remainder = models.SmallIntegerField(
+        "Неснижаемый остаток",
+        blank=True,
+        null=True,
+        help_text="Оставьте пустым или 0, чтобы выключить неснижаемый остаток.",
+    )
 
     @property
     def quantity_s1(self):
@@ -101,6 +115,9 @@ class Part(models.Model):
 
     def __str__(self) -> str:
         return f"{self.vendor_code} - {self.name}"
+
+    def get_absolute_url(self):
+        return reverse("admin:inventory_part_change", kwargs={"pk": self.pk})
 
 
 class Item(models.Model):
@@ -143,6 +160,11 @@ class Item(models.Model):
         blank=True,
         null=True,
         related_name="items",
+    )
+    free_order = models.BooleanField(
+        "Свободный заказ",
+        default=False,
+        help_text="Запретить удаление из заказа при пересчёте резервов.",
     )
 
     @classmethod

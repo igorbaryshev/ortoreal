@@ -1,14 +1,15 @@
 from django.conf import settings
 from django.db import models
-from django.db.models import Case, F, Q, Value, When
+from django.db.models import Case, Count, F, Q, Sum, Value, When
 from django.db.models.functions import Concat
+from django.urls import reverse
 from django.utils.safestring import mark_safe
 
 import django_tables2 as tables
 
 from clients.models import Client, Job
-from inventory.models import InventoryLog, Item
-from inventory.utils import dec2pre, get_dec_display
+from inventory.models import InventoryLog, Item, Order
+from inventory.utils import dec2pre, get_dec_display, wrap_in_color
 
 TD_END = {
     "td": {
@@ -20,6 +21,16 @@ TD_CENTER = {
         "class": "text-center",
     },
 }
+
+
+class VendorExportTable(tables.Table):
+    """
+    Таблица для экпорта.
+    """
+
+    row = tables.Column("№", empty_values=())
+    vendor_code = tables.Column("Артикул")
+    quantity = tables.Column("Количество")
 
 
 class VendorOrderTable(tables.Table):
@@ -44,13 +55,14 @@ class VendorOrderTable(tables.Table):
             "th": {
                 "class": "text-center",
             },
-            "td": {
-                "class": "text-center",
-            },
+            # "td": {
+            #     "class": "text-center",
+            # },
             "tfoot": {
                 "class": "text-end",
             },
         }
+        template_name = "django_tables2/bootstrap5-responsive.html"
 
 
 class OrderTable(VendorOrderTable):
@@ -67,7 +79,92 @@ class OrderTable(VendorOrderTable):
         )
 
 
+class OrdersTable(tables.Table):
+    """
+    Таблица списка заказов.
+    """
+
+    parts = tables.Column("Комплектующие", empty_values=())
+    total_price = tables.Column("Итоговая цена, руб.", empty_values=())
+
+    def render_date(self, record, value):
+        if record.current:
+            value = "Текущий"
+        return value
+
+    def render_parts(self, record):
+        parts = (
+            record.items.values("part")
+            .annotate(
+                item_count=Count("id"),
+                items_filled=Count(
+                    Case(
+                        When(warehouse__isnull=False, then=1),
+                        output_field=models.IntegerField(),
+                    )
+                ),
+                color=Case(
+                    When(item_count=F("items_filled"), then=Value("green")),
+                    When(items_filled=0, then=Value("red")),
+                    default=Value("yellow"),
+                    output_field=models.CharField(),
+                ),
+                status=Concat(
+                    F("part__vendor_code"),
+                    Value(" ("),
+                    F("items_filled"),
+                    Value("/"),
+                    F("item_count"),
+                    Value(")"),
+                    output_field=models.CharField(),
+                ),
+            )
+            .order_by("part__vendor_code")
+        )
+        result = ""
+        n = 7
+        for i in range(len(parts) // n + 1):
+            offset = i * n
+            line = []
+            for part in parts[offset : offset + n]:
+                line.append(wrap_in_color(part["status"], part["color"]))
+            result += " ".join(line)
+            # вставляем разделение
+            if offset + n - 1 < len(parts):
+                result += '<hr style="color: transparent;margin: 1px 0;">'
+
+        return mark_safe(result)
+
+    def render_total_price(self, record):
+        price = (
+            Order.objects.filter(pk=record.pk)
+            .annotate(total_price=Sum("items__part__price"))
+            .values_list("total_price", flat=True)[0]
+        )
+        return get_dec_display(price)
+
+    class Meta:
+        orderable = False
+        model = Order
+        sequence = (
+            "id",
+            "date",
+            "parts",
+            "total_price",
+        )
+        exclude = ("current",)
+        row_attrs = {
+            "data-href": lambda record: record.get_absolute_url,
+            "style": "cursor: pointer;",
+        }
+        template_name = "django_tables2/bootstrap5-responsive.html"
+
+
 class InventoryLogsTable(tables.Table):
+    """
+    Таблица логов инвентаря.
+    """
+
     vendor_code = tables.Column("Артикул", order_by=("vendor_code", "date"))
     part_name = tables.Column("Наименование", order_by=("part_name", "date"))
     item_count = tables.Column("Количество", order_by=("item_count", "date"))
@@ -94,6 +191,10 @@ class InventoryLogsTable(tables.Table):
 
 
 class InventoryLogItemsTable(tables.Table):
+    """
+    Таблица комплектующих в записи инвентаря.
+    """
+
     def render_warehouse(self, record):
         return record.get_warehouse_display()
 
@@ -103,6 +204,10 @@ class InventoryLogItemsTable(tables.Table):
 
 
 class JobSetsTable(tables.Table):
+    """
+    Таблица комплектов протезов.
+    """
+
     initials = tables.Column("Пр-т", accessor="prosthetist.initials")
     items = tables.Column("Комплектующие")
 
@@ -119,7 +224,7 @@ class JobSetsTable(tables.Table):
             )
 
     def render_items(self, record):
-        records = record.reserved_items.annotate(
+        items = record.reserved_items.annotate(
             item_status=Case(
                 When(
                     warehouse__isnull=False,
@@ -144,14 +249,14 @@ class JobSetsTable(tables.Table):
         ).order_by("part__vendor_code", F("warehouse").desc(nulls_last=True))
         result = ""
         n = 6
-        for i in range(len(records) // n + 1):
+        for i in range(len(items) // n + 1):
             offset = i * n
             line = []
-            for item in records[offset : offset + n]:
-                line.append(self.wrap_in_color(item.status, item.color))
+            for item in items[offset : offset + n]:
+                line.append(wrap_in_color(item.status, item.color))
             result += " ".join(line)
             # вставляем разделение
-            if offset + n - 1 < len(records):
+            if offset + n - 1 < len(items):
                 result += '<hr style="color: transparent;margin: 1px 0;">'
 
         return mark_safe(result)
@@ -184,7 +289,9 @@ class JobSetsTable(tables.Table):
     class Meta:
         model = Job
         row_attrs = {
-            "data-href": lambda record: record.get_absolute_url,
+            "data-href": lambda record: reverse(
+                "inventory:job_set", kwargs={"pk": record.pk}
+            ),
             "style": "cursor: pointer;",
         }
         sequence = (
@@ -200,6 +307,10 @@ class JobSetsTable(tables.Table):
 
 
 class JobPartsTable(tables.Table):
+    """
+    Таблица комплектующих в комплекте.
+    """
+
     vendor_code = tables.Column("Артикул", order_by=("vendor_code", "date"))
     part_name = tables.Column("Наименование", order_by=("part_name", "date"))
     item_count = tables.Column("Количество", order_by=("item_count", "date"))

@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}
-  История операций на складе
+  Заказы
 {% endblock title %}
 {% block static %}
   <link rel="stylesheet" href="{% static "css/table.css" %}"/>
 {% endblock static %}
 {% block content %}
   {% load django_tables2 %}
-  <div class="card-body">{% render_table table %}</div>
+  <div class="card-body">
+    {% render_table table %}
+  </div>
   <script>
     $(document).ready(function($) {
       $("tbody tr").click(function() {

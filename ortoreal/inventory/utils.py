@@ -4,11 +4,11 @@ from decimal import Decimal
 from functools import wraps
 
 from django.contrib.auth import get_user_model
-from django.db.models import Case, F, Q, When
+from django.db.models import Case, Count, F, Q, When
 from django.shortcuts import get_list_or_404, get_object_or_404, redirect
 from django.utils import timezone
 
-from inventory.models import Item, Order
+from inventory.models import Item, Order, Part
 
 User = get_user_model()
 
@@ -155,6 +155,7 @@ def create_reserve(part, job, quantity):
         .order_by("warehouse_old_new", "-warehouse", "date")
     )
     batch = []
+    print(*unused_items.values("id", "warehouse", "order"), sep="\n")
     if quantity <= unused_items.count():
         unused_items = unused_items[:quantity]
         quantity = 0
@@ -171,7 +172,9 @@ def create_reserve(part, job, quantity):
     # дозаказываем недостающее на складе и в старых заказах
     if quantity:
         order = Order.objects.get(current=True)
-        new_items = [Item(reserved=job, order=order) for _ in range(quantity)]
+        new_items = [
+            Item(reserved=job, order=order, part=part) for _ in range(quantity)
+        ]
         Item.objects.bulk_create(new_items)
 
     # возвращаем кол-во добавленных в новый заказ
@@ -197,7 +200,7 @@ def remove_reserve(part, job, quantity):
 
     batch = []
     for item in reserved_items:
-        if item.order.current == True:
+        if item.order is not None and item.order.current:
             item.delete()
         else:
             item.reserved = None
@@ -208,3 +211,44 @@ def remove_reserve(part, job, quantity):
 
     # возвращаем кол-во освобожденных резервов
     return quantity
+
+
+def check_minimum_remainder():
+    """
+    Проверить неснижаемый остаток и добавить нехватки в текущий заказ.
+    """
+    remaining_parts = (
+        Part.objects.filter(
+            minimum_remainder__isnull=False,
+            items__reserved__isnull=True,
+            items__job__isnull=True,
+        )
+        .exclude(minimum_remainder=0)
+        .annotate(item_count=Count("items"))
+    )
+
+    order = Order.objects.get(current=True)
+    for part in remaining_parts:
+        batch_order = []
+        if part.minimum_remainder > part.item_count:
+            quantity = part.minimum_remainder - part.item_count
+            batch_order += [Item(part=part, order=order)] * quantity
+
+    if batch_order:
+        Item.objects.bulk_create(batch_order)
+
+    return len(batch_order)
+
+
+def wrap_in_color(string, color):
+    colors = {
+        "red": "lightcoral",
+        "yellow": "khaki",
+        "blue": "mediumturquoise",
+        "green": "lightgreen",
+    }
+    if color in colors:
+        return (
+            f'<span style="background: {colors[color]}; padding: 2px;'
+            f'border-radius: 2px;">{string}</span>'
+        )

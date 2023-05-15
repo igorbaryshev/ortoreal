@@ -11,6 +11,7 @@ class User(AbstractUser):
         _("first name"), max_length=150, blank=False, default=None
     )
     surname = models.CharField(_("отчество"), max_length=150, blank=True)
+
     is_prosthetist = models.BooleanField(
         "Протезист",
         default=False,

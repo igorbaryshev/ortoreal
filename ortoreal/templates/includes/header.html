@@ -35,9 +35,9 @@
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link{% if view_name == 'inventory:order' %} active{% endif %}"
-                 href="{% url 'inventory:order' %}">
-                Текущий заказ
+              <a class="nav-link{% if view_name == 'inventory:orders' or view_name == 'inventory:order' or view_name == 'invenotry:order_by_id' %} active{% endif %}"
+                 href="{% url 'inventory:orders' %}">
+                Заказы
               </a>
             </li>
             <li class="nav-item">
@@ -60,7 +60,7 @@
             </li>
             {% if user.is_manager or user.is_prosthetist %}
               <li class="nav-item">
-                <a class="nav-link text-wrap{% if view_name == 'inventory:all_job_sets' or 'inventory:job_sets' %} active{% endif %}"
+                <a class="nav-link text-wrap{% if view_name == 'inventory:all_job_sets' or view_name == 'inventory:job_sets' %} active{% endif %}"
                 {% if user.is_manager %}
                    href="{% url 'inventory:all_job_sets' %}">
                 {% elif user.is_prosthetist %}

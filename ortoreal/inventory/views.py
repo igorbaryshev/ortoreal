@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Q, QuerySet, Value, Window
+from django.db.models import Case, Count, F, Q, QuerySet, Value, When, Window
 from django.db.models.functions import Concat, RowNumber
 from django.db.models.query import QuerySet
 from django.http.response import HttpResponse
@@ -40,10 +40,13 @@ from inventory.tables import (
     InventoryLogItemsTable,
     InventoryLogsTable,
     JobSetsTable,
+    OrdersTable,
     OrderTable,
+    VendorExportTable,
     VendorOrderTable,
 )
 from inventory.utils import (
+    check_minimum_remainder,
     create_reserve,
     generate_zip,
     is_prosthetist,
@@ -383,6 +386,13 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def post(self, request, *args, **kwargs):
         client_form = JobSelectForm(user=request.user, data=request.POST)
+        job_pk = kwargs.get("job", None)
+        print(job_pk)
+        if job_pk is not None:
+            job = get_object_or_404(Job, pk=job_pk)
+            client_form = JobSelectForm(
+                user=request.user, initial={"job": job}
+            )
         prosthesis_form = ProsthesisSelectForm(data=request.POST or None)
         formset = PickPartsFormSet(data=request.POST)
         if client_form.is_valid():
@@ -394,7 +404,7 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
                     initial=initial, job=job
                 )
                 formset = PickPartsFormSet(
-                    None, initial=queryset.values("part", "quantity")
+                    initial=queryset.values("part", "quantity")
                 )
             elif prosthesis_form.is_valid() and formset.is_valid():
                 # записываем модели комплектующих в текущем резерве
@@ -402,9 +412,9 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 parts = []
                 for formset_form in formset:
                     part = formset_form.cleaned_data["part"]
-                    if part in parts:
+                    if part.id in parts:
                         continue
-                    parts.append(part)
+                    parts.append(part.id)
                     quantity = formset_form.cleaned_data["quantity"]
                     if part.id in initial_parts:
                         old_quantity = initial_parts[part.id]
@@ -421,12 +431,18 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
                             recalc_reserves(part, recalc_n)
                     elif quantity:
                         create_reserve(part, job, quantity)
+                # проверяем удалённые строки
+                for part_id, quantity in initial_parts.items():
+                    if part_id not in parts:
+                        part = Part.objects.get(id=part_id)
+                        recalc_n = remove_reserve(part, job, quantity)
+                        recalc_reserves(part, recalc_n)
 
                 prosthesis = prosthesis_form.cleaned_data["prosthesis"]
                 job.prosthesis = prosthesis
                 job.save()
 
-                return redirect("inventory:logs")
+                return redirect("inventory:job_sets")
 
         context = {
             "forms": [client_form, prosthesis_form],
@@ -446,10 +462,13 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
         return queryset
 
 
-class FreeOrderItemsView(LoginRequiredMixin, View):
+class FreeOrderItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
     View-класс свободного заказа.
     """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_staff or self.request.user.is_manager
 
     def get(self, request, *args, **kwargs):
         formset = FreeOrderFormSet()
@@ -477,57 +496,54 @@ class FreeOrderItemsView(LoginRequiredMixin, View):
         return render(request, "inventory/free_order.html", context)
 
 
-@login_required
-def add_parts(request):
-    part_formset = PartAddFormSet(request.POST or None, prefix="item")
+class AddPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View добавления моделей комплектующих.
+    """
 
-    if request.method == "POST" and part_formset.is_valid():
-        for form in part_formset:
-            if form.is_valid():
-                form.save()
+    def test_func(self) -> bool:
+        return self.request.user.is_staff or self.request.user.is_manager
 
-        return redirect("/admin/inventory/")
+    def get(self, request):
+        formset = PartAddFormSet(prefix="item")
 
-    context = {
-        "formset": part_formset,
-        "adding": True,
-    }
+        context = {
+            "formset": formset,
+        }
+        return render(request, "inventory/add_items.html", context)
 
-    return render(request, "inventory/add_items.html", context)
+    def post(self, request):
+        formset = PartAddFormSet(request.POST or None, prefix="item")
+        if formset.is_valid():
+            for form in formset:
+                if form.is_valid():
+                    form.save()
 
+            return redirect("inventory:nomenclature")
 
-@login_required
-def order(request, pk=None):
-    queryset = Order.objects.get(current=True)
-
-    if pk:
-        queryset = get_object_or_404(Order, pk=pk)
-
-    table_queryset = (
-        queryset.items.values(
-            "part__vendor_code", "part__price", "part__vendor"
-        )
-        .annotate(
-            row=Window(RowNumber()),
-            vendor_code=F("part__vendor_code"),
-            price=F("part__price"),
-            quantity=Count("vendor_code"),
-            vendor=F("part__vendor__name"),
-            price_mul=F("quantity") * F("price"),
-        )
-        .order_by("vendor_code")
-    )
-    table = OrderTable(table_queryset)
-    context = {
-        "table": table,
-    }
-
-    return render(request, "inventory/order.html", context)
+        context = {
+            "formset": formset,
+        }
+        return render(request, "inventory/add_items.html", context)
 
 
-class OrderView(ExportMixin, tables.SingleTableView):
+class OrderView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    ExportMixin,
+    tables.SingleTableView,
+):
+    """
+    View заказа.
+    """
+
     table_class = OrderTable
     template_name = "inventory/order.html"
+
+    def test_func(self) -> bool:
+        if self.request.user.is_staff or self.request.user.is_manager:
+            return True
+        return False
 
     @property
     def is_current(self):
@@ -539,6 +555,10 @@ class OrderView(ExportMixin, tables.SingleTableView):
         if self.is_current:
             return get_object_or_404(Order, current=True)
         return get_object_or_404(Order, pk=self.kwargs.get("pk"))
+
+    def get(self, request, pk=None):
+        check_minimum_remainder()
+        return super().get(request)
 
     def post(self, request):
         if self.is_current:
@@ -571,29 +591,72 @@ class OrderView(ExportMixin, tables.SingleTableView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["current"] = self.is_current
+        order = self.get_order()
+        context["title"] = "Заказ от"
+        if order.current:
+            context["title"] = "Текущий заказ c"
+        context["date"] = order.date
         return context
 
 
+class OrdersView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    ExportMixin,
+    tables.SingleTableView,
+):
+    """
+    View списка всех заказов.
+    """
+
+    ORDERS_PER_PAGE = 30
+
+    table_class = OrdersTable
+    paginator_class = LazyPaginator
+    paginate_by = ORDERS_PER_PAGE
+
+    def test_func(self) -> bool:
+        if self.request.user.is_staff or self.request.user.is_manager:
+            return True
+        return False
+
+    def get_queryset(self) -> QuerySet[Any]:
+        return Order.objects.order_by("-id")
+
+
 def export_orders(request):
+    """
+    Экспорт заказов по поставщикам в .zip архиве.
+    """
     queryset = Order.objects.get(current=True)
-    vendors = queryset.items.values_list(
-        "part__vendor__id", "part__vendor__name"
-    ).distinct()
+    vendors = (
+        queryset.items.annotate(
+            vendor_id=F("part__vendor__id"),
+            name=Case(
+                When(part__vendor__isnull=True, then=Value("-")),
+                default=F("part__vendor__name"),
+            ),
+        )
+        .values("vendor_id", "name")
+        .distinct()
+    )
     table_queryset = (
-        queryset.items.values("part__vendor_code", "part__price")
+        queryset.items.values("part")
         .annotate(
             row=Window(RowNumber()),
             vendor_code=F("part__vendor_code"),
-            price=F("part__price"),
-            quantity=Count("vendor_code"),
-            price_mul=F("quantity") * F("price"),
+            # price=F("part__price"),
+            quantity=Count("part"),
+            # price_mul=F("quantity") * F("price"),
         )
         .order_by("vendor_code")
     )
     files = []
     for vendor in vendors:
-        vendor_queryset = table_queryset.filter(part__vendor_id=vendor[0])
-        table = VendorOrderTable(vendor_queryset)
+        vendor_queryset = table_queryset.filter(
+            part__vendor_id=vendor["vendor_id"]
+        )
+        table = VendorExportTable(vendor_queryset)
         output = io.BytesIO()
         workbook = Workbook(output, {"in_memory": True})
         worksheet = workbook.add_worksheet()
@@ -604,10 +667,10 @@ def export_orders(request):
         workbook.close()
         table_file = output.getvalue()
         output.close()
-        files.append((vendor[1] + ".xlsx", table_file))
+        files.append((vendor["name"] + ".xlsx", table_file))
 
     current_date = timezone.now().strftime("%Y-%m-%d_%H-%M")
-    zip_name = urllib.parse.quote(f"Заказ_{current_date}")
+    zip_name = urllib.parse.quote(f"Заказ_от_{current_date}")
     response = HttpResponse(generate_zip(files))
     response["Content-Type"] = "application/x-zip-compressed"
     response[
@@ -619,7 +682,7 @@ def export_orders(request):
 
 class InventoryLogsListView(tables.SingleTableView):
     """
-    View-класс логов инвентаря.
+    View логов инвентаря.
     """
 
     table_class = InventoryLogsTable
@@ -653,10 +716,12 @@ class JobSetsView(
     LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
 ):
     """
-    View-класс комплектов клиентов протезиста.
+    View комплектов клиентов протезиста.
     """
 
     table_class = JobSetsTable
+    paginator_class = LazyPaginator
+    paginate_by = 30
 
     def test_func(self) -> bool:
         return self.request.user.is_prosthetist
@@ -674,9 +739,38 @@ class JobSetsView(
         return context
 
 
+class JobSetView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    Изменение комплектации по id.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist
+
+    def get(self, request, *args, **kwargs):
+        job = get_object_or_404(Job, pk=kwargs.get("pk", None))
+        queryset = self.get_queryset(job)
+        form = ProsthesisSelectForm(job=job)
+        formset = PickPartsFormSet(initial=queryset.values("part", "quantity"))
+
+        context = {"form": form, "formset": formset}
+        return render(request, "inventory/job_set.html", context)
+
+    def get_queryset(self, job):
+        queryset = (
+            Part.objects.filter(items__reserved=job)
+            .annotate(
+                quantity=Count("items", filter=Q(items__reserved=job)),
+                part=F("pk"),
+            )
+            .order_by("vendor_code")
+        )
+        return queryset
+
+
 class AllJobSetsView(JobSetsView):
     """
-    View-класс комплектов всех клиентов для менеджера.
+    View комплектов всех клиентов для менеджера.
     """
 
     def test_func(self) -> bool:
