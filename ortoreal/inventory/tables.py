@@ -40,14 +40,19 @@ class VendorOrderTable(tables.Table):
     price = tables.Column("Цена, руб.", attrs=TD_END, footer="Всего:")
     price_mul = tables.Column(
         "Всего, руб.",
-        footer=lambda table: dec2pre(sum(x["price_mul"] for x in table.data)),
+        footer=lambda table: get_dec_display(
+            sum(x["price_mul"] for x in table.data)
+        ),
         attrs=TD_END,
     )
+
+    def render_price(self, value):
+        return get_dec_display(value)
 
     def render_price_mul(self, value):
         # Конвертация суммы из аннотированного сета
         # в сумму с двумя знаками после запятой
-        return dec2pre(value)
+        return get_dec_display(value)
 
     class Meta:
         orderable = False

@@ -86,7 +86,7 @@ def edit_contact(request, pk):
 #     LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
 # ):
 #     """
-#     View-класс клиентов протезиста.
+#     View клиентов протезиста.
 #     """
 
 #     table_class = ClientsTable
@@ -109,7 +109,7 @@ def edit_contact(request, pk):
 
 class JobDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    View-класс подробностей о клиенте.
+    View подробностей о клиенте.
     """
 
     def test_func(self) -> bool:
@@ -131,7 +131,7 @@ class JobDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 # class AllClientsListView(ClientListView):
 #     """
-#     View-класс всех клиентов для менеджера.
+#     View всех клиентов для менеджера.
 #     """
 
 #     def test_func(self) -> bool:

@@ -26,7 +26,14 @@
           <button id="remove-form" type="button" class="btn btn-danger">-</button>
           <button id="submit-form"
                   type="submit"
-                  class="btn btn-primary position-absolute end-0">Добавить в тек. заказ</button>
+                  class="btn btn-primary position-absolute end-0">
+            {% if editing %}
+              Изменить
+            {% else %}
+              Добавить в
+            {% endif %}
+            заказ
+          </button>
         </div>
       </div>
     </form>

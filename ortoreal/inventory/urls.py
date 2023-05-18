@@ -13,9 +13,14 @@ urlpatterns = [
     path("add_parts/", views.AddPartsView.as_view(), name="add_parts"),
     path("orders/", views.OrdersView.as_view(), name="orders"),
     path("orders/current/", views.OrderView.as_view(), name="order"),
+    path(
+        "orders/current/edit/",
+        views.FreeOrderEditView.as_view(),
+        name="free_order_edit",
+    ),
     path("orders/<int:pk>/", views.OrderView.as_view(), name="order_by_id"),
     path("orders/download/", views.export_orders, name="export_order"),
-    path("orders/add/", views.FreeOrderItemsView.as_view(), name="free_order"),
+    path("orders/add/", views.FreeOrderAddView.as_view(), name="free_order"),
     path("logs/", views.InventoryLogsListView.as_view(), name="logs"),
     path(
         "logs/<int:pk>/",

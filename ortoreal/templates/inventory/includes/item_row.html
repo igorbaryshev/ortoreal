@@ -1,10 +1,11 @@
 <tr class="text-center">
   <th scope="col">{{ row.id }}</th>
-  <td>{{ row.date_added|date:"d.m.Y" }}</td>
-  <td>{{ row.get_warehouse_display }}</td>
-  <td>{{ row.client|default:"-" }}</td>
-  <td>{{ row.prosthetist|default:"-" }}</td>
+  <td>{{ row.date|date:"d.m.Y" }}</td>
+  <td>{{ row.get_warehouse_display|default:"не на складе" }}</td>
+  <td>{{ row.job|default:"-" }}</td>
   <td>{{ row.reserved|default:"-" }}</td>
+  <td>{{ row.order|default:"-" }}</td>
+  <td>{% if row.free_order %}✔️{% else %}❌{% endif %}</td>
   <td>
     <a class="btn btn-secondary"
        href="{% url 'admin:inventory_item_change' row.id %}">Изменить</a>

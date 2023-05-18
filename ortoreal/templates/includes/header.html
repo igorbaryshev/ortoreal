@@ -40,12 +40,14 @@
                 Заказы
               </a>
             </li>
+            {% comment %}
             <li class="nav-item">
               <a class="nav-link{% if view_name == 'clients:contacts' %} active{% endif %}"
                  href="{% url 'clients:contacts' %}">
                 Обращения
               </a>
             </li>
+            {% endcomment %}
             <li class="nav-item">
               <a class="nav-link{% if view_name == 'inventory:add_items' %} active{% endif %}"
                  href="{% url 'inventory:add_items' %}">
