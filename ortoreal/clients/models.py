@@ -5,6 +5,7 @@ from django.db.models.functions import Cast, Concat, Substr
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
 from phonenumber_field.modelfields import PhoneNumberField
@@ -244,4 +245,4 @@ class Job(models.Model):
             new_status.save()
 
     def get_absolute_url(self):
-        return reverse("inventory:pick_parts")
+        return reverse("clients:job", kwargs={"pk": self.pk})

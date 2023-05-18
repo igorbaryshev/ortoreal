@@ -1,5 +1,6 @@
 import io
 import urllib
+from collections import OrderedDict, defaultdict
 from typing import Any, Dict, Optional
 
 from django import forms
@@ -7,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Q, QuerySet, Value, Window
+from django.db.models import Case, Count, F, Q, QuerySet, Value, When, Window
 from django.db.models.functions import Concat, RowNumber
 from django.db.models.query import QuerySet
 from django.http.response import HttpResponse
@@ -39,15 +40,21 @@ from inventory.models import InventoryLog, Item, Order, Part, Prosthesis
 from inventory.tables import (
     InventoryLogItemsTable,
     InventoryLogsTable,
+    JobSetsTable,
+    OrdersTable,
     OrderTable,
+    VendorExportTable,
     VendorOrderTable,
 )
 from inventory.utils import (
+    OrderedCounter,
+    check_minimum_remainder,
     create_reserve,
     generate_zip,
-    is_prosthetist,
-    recalc_reserves,
+    move_reserves_to_free_order,
+    remove_excess_from_current_order,
     remove_reserve,
+    reorg_reserves,
 )
 
 PARTS_PER_PAGE = 30
@@ -105,7 +112,6 @@ class AddItemsView(LoginRequiredMixin, View):
         context = {
             "form": form,
             "formset": formset,
-            "adding": True,
         }
         return render(request, "inventory/add_items.html", context)
 
@@ -119,7 +125,7 @@ class AddItemsView(LoginRequiredMixin, View):
             # фильтр: не назначен склад, не в текущем заказе,
             # сортировка по дате резерва, без резерва - в последнюю очередь
             ordered_items = Item.objects.filter(
-                warehouse="", order__current=False
+                warehouse__isnull=True, order__current=False
             ).order_by(F("reserved__date").asc(nulls_last=True), F("id").asc())
             for formset_form in formset:
                 quantity = formset_form.cleaned_data["quantity"]
@@ -136,7 +142,7 @@ class AddItemsView(LoginRequiredMixin, View):
                 warehouse = formset_form.cleaned_data["warehouse"]
                 matching_ordered = ordered_items.filter(part=part)
                 # Проверяем, есть ли пришедшие в заказанных,
-                # добавляем склад и дату прихода
+                # добавляем склад и заменяем дату на дату прихода
                 batch_update_items = []
                 if matching_ordered.exists():
                     match_quantity = len(matching_ordered)
@@ -144,6 +150,8 @@ class AddItemsView(LoginRequiredMixin, View):
                         quantity -= match_quantity
                     else:
                         match_quantity = quantity
+                        # обнуляем кол-во, чтобы не создавать новые записи
+                        quantity = 0
                     for item in matching_ordered[:match_quantity]:
                         item.warehouse, item.date = warehouse, date
                         batch_update_items.append(item)
@@ -152,8 +160,7 @@ class AddItemsView(LoginRequiredMixin, View):
                 if quantity:
                     batch_create_items = [
                         Item(part=part, warehouse=warehouse, date=date)
-                        for _ in range(quantity)
-                    ]
+                    ] * quantity
                     Item.objects.bulk_create(batch_create_items)
                 # Берём только что созданные записи для добавления в историю
                 created_items = list(
@@ -171,7 +178,6 @@ class AddItemsView(LoginRequiredMixin, View):
         context = {
             "form": form,
             "formset": formset,
-            "adding": True,
         }
 
         return render(request, "inventory/add_items.html", context)
@@ -179,7 +185,7 @@ class AddItemsView(LoginRequiredMixin, View):
 
 class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    View-класс взятия комплектующих протезистом.
+    View взятия комплектующих протезистом.
     """
 
     def test_func(self) -> bool:
@@ -209,8 +215,14 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                     batch_items = []
                     # записываем комплектующие, чтобы избавиться от повторов
                     parts = []
-                    items_filter = Q(job=None) & (
-                        Q(reserved=job) | Q(reserved=None)
+                    items_filter = (
+                        Q(warehouse__isnull=False)
+                        & Q(job=None)
+                        & (
+                            Q(reserved=job)
+                            | Q(reserved=None)
+                            | Q(reserved__date__gt=job.date)
+                        )
                     )
                     for formset_form in formset:
                         quantity = formset_form.cleaned_data["quantity"]
@@ -239,10 +251,37 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                         log.items.set(items)
                         log.save()
                         batch_items += list(items)
+                    # словарь моделей комплектующих, в которых упорядоченно
+                    # хранятся работы с кол-вом комплектующих,
+                    # для которых нужен новый резерв
+                    parts_to_reserve = defaultdict(OrderedCounter)
                     for item in batch_items:
+                        # если комплектующая была взята из чужого резерва,
+                        # то записываем взятый резерв
+                        if item.reserved != job:
+                            # берём словарь модели комплектующей, увеличиваем
+                            # кол-во требуемое в резерв работе, у которой взяли
+                            parts_to_reserve[item.part][item.reserved] += 1
+                            item.reserved = job
                         item.job = job
+
                     if batch_items:
-                        Item.objects.bulk_update(batch_items, ["job"])
+                        Item.objects.bulk_update(
+                            batch_items, ["job", "reserved"]
+                        )
+
+                    # пересоздаём резервы для всех, у кого взяли
+                    if parts_to_reserve:
+                        for part, job_dict in parts_to_reserve.items():
+                            print(job_dict)
+                            # берём первую работу и кол-во из словаря
+                            job, quantity = job_dict.popitem(last=False)
+                            create_reserve(
+                                part, job, quantity, job_dict=job_dict
+                            )
+                    # проверяем неснижаемый остаток
+                    check_minimum_remainder()
+
                     return redirect("inventory:nomenclature")
             # если клиент в форме изменился, меняем queryset в формсете
             else:
@@ -254,8 +293,15 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
         return render(request, "inventory/take_return_items.html", context)
 
     def get_queryset(self, job):
-        qs_filter = Q(items__job=None) & (
-            Q(items__reserved=job) | Q(items__reserved=None)
+        # разрешить брать из чужих резервов, если они новее
+        qs_filter = (
+            Q(items__warehouse__isnull=False)
+            & Q(items__job=None)
+            & (
+                Q(items__reserved=job)
+                | Q(items__reserved=None)
+                | Q(items__reserved__date__gt=job.date)
+            )
         )
         queryset = Part.objects.annotate(
             available=Count("items", filter=qs_filter),
@@ -344,7 +390,10 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                     Item.objects.bulk_update(batch_reserved, ["reserved"])
                 # пересчитываем резервы для возвращённых моделей комплектующих
                 for part, quantity in parts:
-                    recalc_reserves(part, quantity)
+                    reorg_reserves(part)
+
+                # удаляем возможные излишки из текущего заказа после пересчёта
+                remove_excess_from_current_order()
 
                 return redirect("inventory:logs")
 
@@ -369,7 +418,7 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    View-class выбора комплектующих протезистом и дозаказ недостающих.
+    # View выбора комплектующих протезистом, и дозаказ недостающих.
     """
 
     def test_func(self) -> bool:
@@ -382,28 +431,36 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def post(self, request, *args, **kwargs):
         client_form = JobSelectForm(user=request.user, data=request.POST)
+        job_pk = kwargs.get("job", None)
+        if job_pk is not None:
+            job = get_object_or_404(Job, pk=job_pk)
+            client_form = JobSelectForm(
+                user=request.user, initial={"job": job}
+            )
         prosthesis_form = ProsthesisSelectForm(data=request.POST or None)
         formset = PickPartsFormSet(data=request.POST)
         if client_form.is_valid():
             job = client_form.cleaned_data["job"]
             queryset = self.get_queryset(job)
+            # если формсет пустой, то задаём исходные данные
             if not formset.forms:
                 initial = {"prosthesis": job.prosthesis}
                 prosthesis_form = ProsthesisSelectForm(
                     initial=initial, job=job
                 )
                 formset = PickPartsFormSet(
-                    None, initial=queryset.values("part", "quantity")
+                    initial=queryset.values("part", "quantity")
                 )
+            # иначе, проверяем валидность формы протеза и формсета
             elif prosthesis_form.is_valid() and formset.is_valid():
                 # записываем модели комплектующих в текущем резерве
                 initial_parts = dict(queryset.values_list("id", "quantity"))
                 parts = []
                 for formset_form in formset:
                     part = formset_form.cleaned_data["part"]
-                    if part in parts:
+                    if part.id in parts:
                         continue
-                    parts.append(part)
+                    parts.append(part.id)
                     quantity = formset_form.cleaned_data["quantity"]
                     if part.id in initial_parts:
                         old_quantity = initial_parts[part.id]
@@ -413,19 +470,25 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
                             create_reserve(part, job, quantity - old_quantity)
                         # если меньше, возвращаем и пересчитываем резервы
                         elif quantity < old_quantity:
-                            # кол-во комплектующих, которые нужно пересчитать
-                            recalc_n = remove_reserve(
-                                part, job, old_quantity - quantity
-                            )
-                            recalc_reserves(part, recalc_n)
+                            # удалить резервы
+                            remove_reserve(part, job, old_quantity - quantity)
+                            # пересчитать резервы,
+                            reorg_reserves(part, job)
                     elif quantity:
                         create_reserve(part, job, quantity)
+                # проверяем удалённые строки
+                for part_id, quantity in initial_parts.items():
+                    if part_id not in parts:
+                        part = Part.objects.get(id=part_id)
+                        remove_reserve(part, job, quantity)
+                        reorg_reserves(part, job)
 
                 prosthesis = prosthesis_form.cleaned_data["prosthesis"]
                 job.prosthesis = prosthesis
                 job.save()
+                check_minimum_remainder()
 
-                return redirect("inventory:logs")
+                return redirect("inventory:job_sets")
 
         context = {
             "forms": [client_form, prosthesis_form],
@@ -445,10 +508,13 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
         return queryset
 
 
-class FreeOrderItemsView(LoginRequiredMixin, View):
+class FreeOrderAddView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    View-класс свободного заказа.
+    View свободного заказа.
     """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_staff or self.request.user.is_manager
 
     def get(self, request, *args, **kwargs):
         formset = FreeOrderFormSet()
@@ -459,74 +525,196 @@ class FreeOrderItemsView(LoginRequiredMixin, View):
         formset = FreeOrderFormSet(request.POST)
         if formset.forms and formset.is_valid():
             order = get_object_or_404(Order, current=True)
-            batch_items = []
+            batch_create = []
             for formset_form in formset:
                 quantity = formset_form.cleaned_data["quantity"]
                 # Если кол-во не указано или <= 0, то пропустить
                 if quantity is None or quantity <= 0:
                     continue
                 part = formset_form.cleaned_data["part"]
-                batch_items += [
-                    Item(part=part, order=order) for _ in range(quantity)
-                ]
-            Item.objects.bulk_create(batch_items)
+                print(part)
+                batch_create += [
+                    Item(part=part, order=order, free_order=True)
+                ] * quantity
+
+            Item.objects.bulk_create(batch_create)
+
+            print(move_reserves_to_free_order())
+            print(remove_excess_from_current_order())
+
             return redirect("inventory:order")
 
         context = {"formset": formset}
         return render(request, "inventory/free_order.html", context)
 
 
-@login_required
-def add_parts(request):
-    part_formset = PartAddFormSet(request.POST or None, prefix="item")
+class FreeOrderEditView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View изменения свободного заказа.
+    """
 
-    if request.method == "POST" and part_formset.is_valid():
-        for form in part_formset:
-            if form.is_valid():
-                form.save()
+    def test_func(self) -> bool:
+        return self.request.user.is_staff or self.request.user.is_manager
 
-        return redirect("/admin/inventory/")
+    def get(self, request, *args, **kwargs):
+        formset = FreeOrderFormSet(initial=self.get_initial())
+        context = {"formset": formset, "editing": True}
+        return render(request, "inventory/free_order.html", context)
 
-    context = {
-        "formset": part_formset,
-        "adding": True,
-    }
+    def post(self, request, *args, **kwargs):
+        formset = FreeOrderFormSet(request.POST)
+        if formset.is_valid():
+            initial = dict(
+                Part.objects.annotate(
+                    quantity=Count(
+                        "items",
+                        filter=Q(items__order__current=True)
+                        & Q(items__free_order=True),
+                    )
+                )
+                .exclude(quantity=0)
+                .values_list("id", "quantity")
+            )
+            # записываем модели комплектующих, которые были проверены
+            parts = []
+            batch_create = []
+            batch_update = []
+            order = get_object_or_404(Order, current=True)
+            for form in formset:
+                part = form.cleaned_data["part"]
+                if part.id in parts:
+                    continue
+                parts.append(part.id)
+                quantity = form.cleaned_data["quantity"]
+                # Если модель указана в исходных данных, то изменяем их
+                if part.id in initial:
+                    initial_quantity = initial[part.id]
+                    if quantity > initial_quantity:
+                        batch_create += self.create_items(
+                            part.id, quantity - initial_quantity, order
+                        )
+                    elif quantity < initial_quantity:
+                        # если кол-во уменьшено, то убрать незарезервированные,
+                        # а зарезервированным изменить заказ на обычный,
+                        # незарезервированные в начале списка
+                        batch_update += self.remove_from_order(
+                            part.id, initial_quantity - quantity
+                        )
+                # Если нет, то просто создаём записи комплектующих
+                else:
+                    batch_create += self.create_items(part.id, quantity, order)
+            # Проходим по исходным, ищем удалённые
+            for part_id, quantity in initial.items():
+                # Если модель была удалена из заказа, то удаляем записи
+                if part_id not in parts:
+                    batch_update += self.remove_from_order(part_id, quantity)
 
-    return render(request, "inventory/add_items.html", context)
+            # обновляем комплектующие, которые больше не в свободном заказе
+            if batch_update:
+                Item.objects.bulk_update(batch_update, ["free_order"])
 
+            # создаём записи комплектующих и перемещаем на них обычные заказы
+            if batch_create:
+                Item.objects.bulk_create(batch_create)
+                move_reserves_to_free_order()
 
-@login_required
-def order(request, pk=None):
-    queryset = Order.objects.get(current=True)
+            check_minimum_remainder()
+            return redirect("inventory:order")
 
-    if pk:
-        queryset = get_object_or_404(Order, pk=pk)
+        context = {"formset": formset, "editing": True}
+        return render(request, "inventory/free_order.html", context)
 
-    table_queryset = (
-        queryset.items.values(
-            "part__vendor_code", "part__price", "part__vendor"
+    def remove_from_order(self, part_id, quantity=None):
+        """
+        Метод снимает свободный заказ с зарезервированного и
+        удаляет незарезервированное.
+        Возвращает список для обновления.
+        """
+        batch_update = []
+        items = Item.objects.filter(
+            part_id=part_id, order__current=True, free_order=True
+        ).order_by("reserved")
+        if quantity is not None:
+            items = items[:quantity]
+        batch_update = []
+        for item in items:
+            # если было в резерве, то делаем обычным заказом
+            if item.reserved:
+                item.free_order = False
+                batch_update.append(item)
+            # иначе, удаляем из заказа
+            else:
+                item.delete()
+
+        return batch_update
+
+    def create_items(self, part_id, quantity, order):
+        """
+        Возвращает список для создания.
+        """
+        items = [
+            Item(part_id=part_id, order=order, free_order=True)
+        ] * quantity
+        return items
+
+    def get_initial(self):
+        initial = (
+            Item.objects.filter(order__current=True, free_order=True)
+            .values("part")
+            .annotate(quantity=Count("part"))
+            .order_by("part__vendor_code")
         )
-        .annotate(
-            row=Window(RowNumber()),
-            vendor_code=F("part__vendor_code"),
-            price=F("part__price"),
-            quantity=Count("vendor_code"),
-            vendor=F("part__vendor__name"),
-            price_mul=F("quantity") * F("price"),
-        )
-        .order_by("vendor_code")
-    )
-    table = OrderTable(table_queryset)
-    context = {
-        "table": table,
-    }
-
-    return render(request, "inventory/order.html", context)
+        return initial
 
 
-class OrderView(ExportMixin, tables.SingleTableView):
+class AddPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View добавления моделей комплектующих.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_staff or self.request.user.is_manager
+
+    def get(self, request):
+        formset = PartAddFormSet(prefix="item")
+
+        context = {
+            "formset": formset,
+        }
+        return render(request, "inventory/add_items.html", context)
+
+    def post(self, request):
+        formset = PartAddFormSet(request.POST or None, prefix="item")
+        if formset.is_valid():
+            for form in formset:
+                if form.is_valid():
+                    form.save()
+
+            return redirect("inventory:nomenclature")
+
+        context = {
+            "formset": formset,
+        }
+        return render(request, "inventory/add_items.html", context)
+
+
+class OrderView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    ExportMixin,
+    tables.SingleTableView,
+):
+    """
+    View заказа.
+    """
+
     table_class = OrderTable
     template_name = "inventory/order.html"
+
+    def test_func(self) -> bool:
+        if self.request.user.is_staff or self.request.user.is_manager:
+            return True
+        return False
 
     @property
     def is_current(self):
@@ -538,6 +726,10 @@ class OrderView(ExportMixin, tables.SingleTableView):
         if self.is_current:
             return get_object_or_404(Order, current=True)
         return get_object_or_404(Order, pk=self.kwargs.get("pk"))
+
+    def get(self, request, pk=None):
+        check_minimum_remainder()
+        return super().get(request)
 
     def post(self, request):
         if self.is_current:
@@ -570,29 +762,72 @@ class OrderView(ExportMixin, tables.SingleTableView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["current"] = self.is_current
+        order = self.get_order()
+        context["title"] = "Заказ от"
+        if order.current:
+            context["title"] = "Текущий заказ c"
+        context["date"] = order.date
         return context
 
 
+class OrdersView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    ExportMixin,
+    tables.SingleTableView,
+):
+    """
+    View списка всех заказов.
+    """
+
+    ORDERS_PER_PAGE = 30
+
+    table_class = OrdersTable
+    paginator_class = LazyPaginator
+    paginate_by = ORDERS_PER_PAGE
+
+    def test_func(self) -> bool:
+        if self.request.user.is_staff or self.request.user.is_manager:
+            return True
+        return False
+
+    def get_queryset(self) -> QuerySet[Any]:
+        return Order.objects.order_by("-id")
+
+
 def export_orders(request):
+    """
+    Экспорт заказов по поставщикам в .zip архиве.
+    """
     queryset = Order.objects.get(current=True)
-    vendors = queryset.items.values_list(
-        "part__vendor__id", "part__vendor__name"
-    ).distinct()
+    vendors = (
+        queryset.items.annotate(
+            vendor_id=F("part__vendor__id"),
+            name=Case(
+                When(part__vendor__isnull=True, then=Value("-")),
+                default=F("part__vendor__name"),
+            ),
+        )
+        .values("vendor_id", "name")
+        .distinct()
+    )
     table_queryset = (
-        queryset.items.values("part__vendor_code", "part__price")
+        queryset.items.values("part")
         .annotate(
             row=Window(RowNumber()),
             vendor_code=F("part__vendor_code"),
-            price=F("part__price"),
-            quantity=Count("vendor_code"),
-            price_mul=F("quantity") * F("price"),
+            # price=F("part__price"),
+            quantity=Count("part"),
+            # price_mul=F("quantity") * F("price"),
         )
         .order_by("vendor_code")
     )
     files = []
     for vendor in vendors:
-        vendor_queryset = table_queryset.filter(part__vendor_id=vendor[0])
-        table = VendorOrderTable(vendor_queryset)
+        vendor_queryset = table_queryset.filter(
+            part__vendor_id=vendor["vendor_id"]
+        )
+        table = VendorExportTable(vendor_queryset)
         output = io.BytesIO()
         workbook = Workbook(output, {"in_memory": True})
         worksheet = workbook.add_worksheet()
@@ -603,10 +838,10 @@ def export_orders(request):
         workbook.close()
         table_file = output.getvalue()
         output.close()
-        files.append((vendor[1] + ".xlsx", table_file))
+        files.append((vendor["name"] + ".xlsx", table_file))
 
     current_date = timezone.now().strftime("%Y-%m-%d_%H-%M")
-    zip_name = urllib.parse.quote(f"Заказ_{current_date}")
+    zip_name = urllib.parse.quote(f"Заказ_от_{current_date}")
     response = HttpResponse(generate_zip(files))
     response["Content-Type"] = "application/x-zip-compressed"
     response[
@@ -618,7 +853,7 @@ def export_orders(request):
 
 class InventoryLogsListView(tables.SingleTableView):
     """
-    View-класс логов инвентаря.
+    View логов инвентаря.
     """
 
     table_class = InventoryLogsTable
@@ -646,3 +881,80 @@ class InventoryLogsDetailView(tables.SingleTableView):
     def get_queryset(self) -> QuerySet[Any]:
         queryset = self.get_log().items.order_by("-id")
         return queryset
+
+
+class JobSetsView(
+    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
+):
+    """
+    View комплектов клиентов протезиста.
+    """
+
+    table_class = JobSetsTable
+    paginator_class = LazyPaginator
+    paginate_by = 30
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Job.objects.filter(prosthetist=self.request.user).order_by(
+            "-date"
+        )
+        return queryset
+
+    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context["title"] = f"{self.request.user}. Клиенты."
+
+        return context
+
+
+class JobSetView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    Изменение комплектации по id.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist
+
+    def get(self, request, *args, **kwargs):
+        job = get_object_or_404(Job, pk=kwargs.get("pk", None))
+        queryset = self.get_queryset(job)
+        form = ProsthesisSelectForm(job=job)
+        formset = PickPartsFormSet(initial=queryset.values("part", "quantity"))
+
+        context = {"form": form, "formset": formset}
+        return render(request, "inventory/job_set.html", context)
+
+    def get_queryset(self, job):
+        queryset = (
+            Part.objects.filter(items__reserved=job)
+            .annotate(
+                quantity=Count("items", filter=Q(items__reserved=job)),
+                part=F("pk"),
+            )
+            .order_by("vendor_code")
+        )
+        return queryset
+
+
+class AllJobSetsView(JobSetsView):
+    """
+    View комплектов всех клиентов для менеджера.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_manager
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Job.objects.order_by("-date")
+        return queryset
+
+    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+        context = super(tables.SingleTableView, self).get_context_data(
+            **kwargs
+        )
+        context["title"] = "Все клиенты."
+
+        return context

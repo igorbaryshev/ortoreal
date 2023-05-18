@@ -2,7 +2,7 @@
 {% load static %}
 {% load user_filters %}
 {% block title %}
-  Свободный заказ
+  Выбрать комплектацию
 {% endblock title %}
 {% block content %}
   <div class="card-body">
@@ -11,6 +11,17 @@
           id="form-container"
           class=" adding">
       {% csrf_token %}
+      {% for field in form %}
+        <div class="row g-3 align-items-center pb-1">
+          <div class="col-auto">
+            <label for="{{ field.id_for_label }}">
+              {{ field.label }}
+              {% if field.field.required %}<span class="required text-danger">*</span>{% endif %}
+            </label>
+          </div>
+          <div class="col-auto">{{ field|addclass:'form-control' }}</div>
+        </div>
+      {% endfor %}
       {{ formset.management_form }}
       <div class="table-responsive">
         <link rel="stylesheet" href="{% static "css/form_table.css" %}"/>
@@ -18,23 +29,26 @@
         <table class="table table-bordered align-middle">
           {% include "includes/form_table_head.html" with form=formset.0 %}
           {% for form in formset %}
-            {% include "./includes/form_item_row.html" %}
+          <tr class="input-row text-center">
+            {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+            {% for field in form.visible_fields %}
+              <td class="item-form {% if field.errors %}alert-td{% endif %}"
+                  title="{% for error in field.errors %}{{ error }}{% if not forloop.last %}&#10;&#013;{% endif %}{% endfor %}">
+                  {{ field }}
+              </td>
+            {% endfor %}
+          </tr>
           {% endfor %}
         </table>
+        {% if formset.forms %}
         <div class="button-row position-relative">
           <button id="add-form" type="button" class="btn btn-secondary">+</button>
           <button id="remove-form" type="button" class="btn btn-danger">-</button>
           <button id="submit-form"
                   type="submit"
-                  class="btn btn-primary position-absolute end-0">
-            {% if editing %}
-              Изменить
-            {% else %}
-              Добавить в
-            {% endif %}
-            заказ
-          </button>
+                  class="btn btn-primary position-absolute end-0">Сохранить комплектацию</button>
         </div>
+        {% endif %}
       </div>
     </form>
   </div>

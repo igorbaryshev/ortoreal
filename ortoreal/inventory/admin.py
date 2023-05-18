@@ -79,6 +79,7 @@ class ItemAdmin(admin.ModelAdmin):
         "reserved",
         "date",
         "order",
+        "free_order",
     )
     list_display_links = list_display
     search_fields = ("part__vendor_code", "part__name")

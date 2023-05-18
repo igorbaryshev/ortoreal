@@ -18,7 +18,7 @@ function cleanForm(form) {
     field.classList.remove("alert-td");
   });
   if (form.querySelector('[name$="-warehouse"]')) {
-    form.querySelector('[name$="-warehouse"]').value = "";
+    form.querySelector('[name$="-warehouse"]').value = "1";
   } else {
     form.querySelector('[name$="-total"]').value = "";
   }

@@ -45,3 +45,7 @@ td>input {
 .select2-container--default .select2-selection--single {
     border: none;
 }
+
+select{
+    border: none;
+}

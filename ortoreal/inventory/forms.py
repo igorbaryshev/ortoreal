@@ -89,8 +89,12 @@ class ItemForm(forms.ModelForm):
 
 class ItemAddForm(ItemForm):
     """
-    Форма добавления/возврата комплектующего на склад.
+    Форма прихода комплектующих на склад.
     """
+
+    warehouse = forms.ChoiceField(
+        label="Склад", choices=Item.Warehouse.choices, required=True
+    )
 
     class Meta:
         model = Item
@@ -202,6 +206,7 @@ class ProsthesisSelectForm(forms.ModelForm):
                 region=region
             ).order_by("name")
             self.fields["prosthesis"].empty_label = "---выбрать---"
+            self.fields["prosthesis"].initial = job.prosthesis
 
 
 class PickPartForm(forms.Form):

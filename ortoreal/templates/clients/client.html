@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}
-  Клиенты {{ prosthetist }}
+  {{ job.client }}. {{ job.status_display }}
 {% endblock title %}
 {% block static %}
   <link rel="stylesheet" href="{% static "css/table.css" %}"/>
@@ -11,7 +11,7 @@
   <div class="card-body">{% render_table table %}</div>
   <script>
     $(document).ready(function($) {
-      $("tr").click(function() {
+      $("tbody tr").click(function() {
           window.location = $(this).data("href");
       });
     });
