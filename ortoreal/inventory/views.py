@@ -279,7 +279,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                             create_reserve(
                                 part, job, quantity, job_dict=job_dict
                             )
-
+                    # проверяем неснижаемый остаток
                     check_minimum_remainder()
 
                     return redirect("inventory:nomenclature")
