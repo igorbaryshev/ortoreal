@@ -32,4 +32,6 @@ class User(AbstractUser):
         verbose_name_plural = "Работники"
 
     def __str__(self):
-        return f"{self.last_name} {self.first_name} {self.surname}"
+        if self.last_name and self.first_name:
+            return f"{self.last_name} {self.first_name} {self.surname}"
+        return self.username
