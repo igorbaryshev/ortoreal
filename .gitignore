@@ -130,3 +130,6 @@ dmypy.json
 
 # isort
 .isort.cfg
+
+# import
+*/scripts/import/
