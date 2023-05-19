@@ -33,7 +33,9 @@ class Order(models.Model):
 
 
 class Vendor(models.Model):
-    name = models.CharField(max_length=1024)
+    name = models.CharField(
+        max_length=1024, unique=True, blank=False, null=False
+    )
 
     class Meta:
         verbose_name = "Производитель/поставщик"
@@ -50,6 +52,7 @@ class Part(models.Model):
         SETS = "sets", _("компл.")
         PACKAGES = "packages", _("упак.")
         ITEMS = "items", _("ед.")
+        METERS = "meters", _("м.")
 
     vendor_code = models.CharField("Артикул", max_length=256, unique=True)
     name = models.CharField("Наименование", max_length=1024)
@@ -60,7 +63,9 @@ class Part(models.Model):
         blank=True,
         default=Units.ITEMS,
     )
-    price = models.DecimalField("Цена, руб.", max_digits=11, decimal_places=2)
+    price = models.DecimalField(
+        "Цена, руб.", max_digits=11, decimal_places=2, blank=True, null=True
+    )
     vendor = models.ForeignKey(
         Vendor,
         verbose_name="Производитель/поставщик",

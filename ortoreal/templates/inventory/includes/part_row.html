@@ -1,14 +1,21 @@
-<tr class="text-center">
+{% load user_filters %}
+<tr>
   <th scope="col">{{ row.id }}</th>
-  <td><a class="vendor_code" href="{% url 'inventory:items' row.id %}">{{ row.vendor_code }}</a></td>
-  <td>{{ row.name }}</td>
-  <td>{{ row.price }}</td>
-  <td>{{ row.vendor|default:"-" }}</td>
+  <td>
+    <a class="vendor_code" href="{% url 'inventory:items' row.id %}">{{ row.vendor_code }}</a>
+  </td>
+  <td>{{ row.name|default:"-" }}</td>
+  <td class="text-end font-monospace text-nowrap">{{ row.price|dec|default:"-" }}</td>
+  <td class="text-center">{{ row.vendor|default:"-" }}</td>
   <td>{{ row.note|default:"-" }}</td>
-  <td>{{ row.minimum_remainder|default:"-" }}</td>
-  <td>{{ row.quantity_s1 }}</td>
-  <td>{{ row.quantity_s2 }}</td>
-  <td>{{ row.quantity_total }}</td>
+  <td class="text-center font-monospace">
+    <span class="m-2">{{ row.minimum_remainder|default:"-" }}</span>
+  </td>
+  <td class="text-end font-monospace">
+    <span class="m-2">{{ row.quantity_s1 }}</span>
+  </td>
+  <td class="text-end font-monospace"><span class="m-2">{{ row.quantity_s2 }}</span></td>
+  <td class="text-end font-monospace"><span class="m-2">{{ row.quantity_total }}</span></td>
   <td>{{ row.get_units_display }}</td>
   <td>
     <a class="btn btn-secondary"

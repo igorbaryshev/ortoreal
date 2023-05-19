@@ -57,7 +57,12 @@ from inventory.utils import (
     reorg_reserves,
 )
 
-PARTS_PER_PAGE = 30
+PARTS_PER_PAGE = 15
+
+
+class LoginRequiredMixin(LoginRequiredMixin):
+    login_url = "/admin/login/"
+    redirect_field_name = "next"
 
 
 def nomenclature(request):

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "users.apps.UsersConfig",
     "inventory.apps.InventoryConfig",
     "clients.apps.ClientsConfig",
+    "django_extensions",
 ]
 
 MIDDLEWARE = [

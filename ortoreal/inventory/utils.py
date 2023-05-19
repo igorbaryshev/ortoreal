@@ -262,7 +262,9 @@ def create_reserve(part, job, quantity, job_dict=OrderedCounter()):
             # берём, что есть, а кол-во уменьшаем для следующего этапа
             quantity -= unused_in_warehouse.count()
         # резервируем получившиеся незанятые
-        unused_in_warehouse.update(reserved=job)
+        for item in unused_in_warehouse:
+            item.reserved = job
+        Item.objects.bulk_update(unused_in_warehouse, ["reserved"])
     # если все нужные резервы созданы, то выходим
     if not quantity:
         return "unused only"
