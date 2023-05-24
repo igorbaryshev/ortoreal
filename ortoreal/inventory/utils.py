@@ -1,4 +1,5 @@
 import io
+import locale
 import zipfile
 from collections import Counter, OrderedDict
 from decimal import Decimal
@@ -39,17 +40,21 @@ def get_dec_display(value):
     """
     Отображение десятичных дробей с пробелами между тысячами и запятой в дроби.
     """
-    value = dec2pre(value)
-    whole, fraction, *_ = str(value).split(".")
-    number = [fraction, ","]
-    i = len(whole) - 3
-    while i > 0:
-        number.append(whole[i : i + 3])
-        number.append(" ")
-        i -= 3
-    else:
-        number.append(whole[0 : 3 + i])
-    result = "".join(map(str, reversed(number)))
+    # value = dec2pre(value)
+    # whole, fraction, *_ = str(value).split(".")
+    # number = [fraction, ","]
+    # i = len(whole) - 3
+    # while i > 0:
+    #     number.append(whole[i : i + 3])
+    #     number.append(" ")
+    #     i -= 3
+    # else:
+    #     number.append(whole[0 : 3 + i])
+    # result = "".join(map(str, reversed(number)))
+    if value is None:
+        return
+    locale.setlocale(locale.LC_MONETARY, "ru_RU.UTF-8")
+    result = locale.currency(value, grouping=True)
     return result
 
 
