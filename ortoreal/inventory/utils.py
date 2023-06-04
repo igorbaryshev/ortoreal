@@ -40,17 +40,6 @@ def get_dec_display(value):
     """
     Отображение десятичных дробей с пробелами между тысячами и запятой в дроби.
     """
-    # value = dec2pre(value)
-    # whole, fraction, *_ = str(value).split(".")
-    # number = [fraction, ","]
-    # i = len(whole) - 3
-    # while i > 0:
-    #     number.append(whole[i : i + 3])
-    #     number.append(" ")
-    #     i -= 3
-    # else:
-    #     number.append(whole[0 : 3 + i])
-    # result = "".join(map(str, reversed(number)))
     if value is None:
         return
     locale.setlocale(locale.LC_MONETARY, "ru_RU.UTF-8")
@@ -179,8 +168,8 @@ def reorg_reserves(part, job=None):
     reserved_items.update(reserved=None)
     # 1. Разбираемся с комплектующими, которые уже есть на складе
     available_items = Item.objects.filter(
-        job=None, part=part, warehouse__isnull=False
-    ).order_by("-warehouse", "date")
+        job=None, part=part, arrived=True
+    ).order_by("-vendor2", "date")
     batch_update = []
     k = 0
     for item in available_items:
@@ -193,7 +182,7 @@ def reorg_reserves(part, job=None):
     if k < len(reserved_items_jobs):
         # 2. Разбираемся с комплектующими в заказах
         order_items = Item.objects.filter(
-            job=None, part=part, warehouse__isnull=True
+            job=None, part=part, arrived=False
         ).order_by("order__date")
         for item in order_items:
             if k >= len(reserved_items_jobs):
@@ -255,8 +244,8 @@ def create_reserve(part, job, quantity, job_dict=OrderedCounter()):
 
     # 1. Сначала разбираемся с остатками на складе.
     unused_in_warehouse = Item.objects.filter(
-        job=None, reserved=None, part=part, warehouse__isnull=False
-    ).order_by("-warehouse")
+        job=None, reserved=None, part=part, arrived=True
+    ).order_by("-vendor2")
     if unused_in_warehouse.exists():
         # если запрашиваемое кол-во <= кол-ва на складе
         if quantity <= unused_in_warehouse.count():
@@ -282,7 +271,7 @@ def create_reserve(part, job, quantity, job_dict=OrderedCounter()):
         part=part,
         reserved__isnull=False,
         reserved__date__gt=job.date,
-        warehouse__isnull=False,
+        arrived=True,
     ).order_by("-reserved__date")
     # список работ, для которых нужно будет дозаказать
     jobs_to_reserve_for = []
@@ -313,7 +302,7 @@ def create_reserve(part, job, quantity, job_dict=OrderedCounter()):
         # в самом раннем заказе ставим в начало комплектующие без резерва,
         # потом самые новые с резервом
         ordered_reserves = (
-            Item.objects.filter(job=None, warehouse__isnull=True, part=part)
+            Item.objects.filter(job=None, arrived=False, part=part)
             .annotate(
                 reserve_date=Case(
                     # если нет резерва, то записываем сегодняшние дату и время
@@ -382,7 +371,7 @@ def remove_reserve(part, job, quantity):
                 default=3,
             )
         )
-        .order_by("new_old_warehouse", "warehouse", "-date")
+        .order_by("new_old_warehouse", "vendor2", "-date")
     )
     if quantity <= reserved_items.count():
         reserved_items = reserved_items[:quantity]
@@ -483,7 +472,7 @@ def remove_excess_from_current_order():
     unreserved_current = Item.objects.filter(
         reserved__isnull=True,
         order__current=True,
-        warehouse__isnull=True,
+        arrived=False,
         free_order=False,
     )
     # всего в остатке
@@ -519,15 +508,13 @@ def remove_excess_from_current_order():
     return len(batch_delete)
 
 
-def wrap_in_color(string, color):
-    colors = {
-        "red": "lightcoral",
-        "yellow": "khaki",
-        "blue": "mediumturquoise",
-        "green": "lightgreen",
-    }
+def wrap_in_color(color, string=None, link=False):
+    colors = {"red", "yellow", "blue", "green"}
     if color in colors:
-        return (
-            f'<span style="background: {colors[color]}; padding: 2px;'
-            f'border-radius: 2px;">{string}</span>'
-        )
+        if link:
+            attrs = {
+                "class": f"{color} item-pill link-dark text-decoration-none"
+            }
+            return attrs
+        return f'<span class="{color} item-pill">{string}</span>'
+    return string or ""

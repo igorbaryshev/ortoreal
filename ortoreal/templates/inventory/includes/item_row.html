@@ -1,10 +1,12 @@
+{% load user_filters %}
 <tr class="text-center">
   <th scope="col">{{ row.id }}</th>
   <td>{{ row.date|date:"d.m.Y" }}</td>
-  <td>{{ row.get_warehouse_display|default:"не на складе" }}</td>
+  <td>{{ row.part.vendor|default:"не на складе" }}</td>
   <td>{{ row.job|default:"-" }}</td>
   <td>{{ row.reserved|default:"-" }}</td>
   <td>{{ row.order|default:"-" }}</td>
+  <td>{{ row.price|dec|default:"-" }}</td>
   <td>{% if row.free_order %}✔️{% else %}❌{% endif %}</td>
   <td>
     <a class="btn btn-secondary"

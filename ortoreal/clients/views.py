@@ -1,11 +1,12 @@
-from typing import Any, Dict
+from decimal import Decimal
+from typing import Any, Dict, Optional
 
 from django import forms
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core import serializers
 from django.core.paginator import Paginator
-from django.db.models import Count, F, Q
+from django.db.models import Case, Count, F, Q, When
 from django.db.models.functions import Concat
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404, redirect, render
@@ -15,6 +16,8 @@ import django_tables2 as tables
 
 from clients.forms import ClientContactForm, ContactForm
 from clients.models import Client, Comment, Contact, Job
+from clients.tables import ClientProsthesisListTable
+from inventory.tables import ClientItemsTable
 
 # from clients.tables import ClientPartsTable, ClientsTable
 
@@ -117,11 +120,11 @@ class JobDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get(self, request, pk):
         job = get_object_or_404(Job, pk=pk)
-        table = ClientPartsTable(
+        table = ClientItemsTable(
             job.items.annotate(
                 item_count=Count("part"),
                 vendor_code=F("part__vendor_code"),
-                part_name=F("part__name"),
+                name=F("part__name"),
             ).order_by("vendor_code")
         )
         context = {"table": table, "job": job}
@@ -148,3 +151,35 @@ class JobDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
 #         context["title"] = "Все клиенты."
 
 #         return context
+
+
+class ClientView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View страницы клиента.
+    """
+
+    def test_func(self) -> bool:
+        if self.request.user.is_manager:
+            return True
+        if self.request.user.is_prosthetist:
+            return Job.objects.filter(
+                client=self.get_client(), prosthetist=self.request.user
+            )
+        return False
+
+    def get_client(self):
+        pk = self.kwargs.get("pk")
+        client = get_object_or_404(Client, pk=pk)
+        return client
+
+    def get(self, request, pk):
+        table = ClientProsthesisListTable(self.get_queryset())
+        context = {"table": table, "client": self.get_client()}
+
+        return render(request, "clients/client.html", context)
+
+    def get_queryset(self):
+        queryset = Job.objects.filter(client=self.get_client()).order_by(
+            "-date"
+        )
+        return queryset

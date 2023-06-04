@@ -5,9 +5,9 @@ from inventory import views
 app_name = "inventory"
 
 urlpatterns = [
-    path("", views.nomenclature, name="nomenclature"),
-    path("items/<int:pk>/", views.items, name="items"),
-    path("add/", views.AddItemsView.as_view(), name="add_items"),
+    path("", views.NomenclatureListView.as_view(), name="nomenclature"),
+    path("items/<int:pk>/", views.PartItemsListView.as_view(), name="items"),
+    path("reception/", views.ReceptionView.as_view(), name="reception"),
     path("take/", views.TakeItemsView.as_view(), name="take_items"),
     path("return/", views.ReturnItemsView.as_view(), name="return_items"),
     path("add_parts/", views.AddPartsView.as_view(), name="add_parts"),
@@ -31,4 +31,5 @@ urlpatterns = [
     path("sets/", views.JobSetsView.as_view(), name="job_sets"),
     path("sets/<int:pk>/", views.JobSetView.as_view(), name="job_set"),
     path("sets/all/", views.AllJobSetsView.as_view(), name="all_job_sets"),
+    path("margins/", views.MarginView.as_view(), name="margins"),
 ]

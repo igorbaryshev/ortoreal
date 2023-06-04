@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
 {% load user_filters %}
+{% block static %}
+  {% if taking %}
+    <script src="{% static 'js/inventory/take_page.js' %}"></script>
+  {% else %}
+    <script src="{% static 'js/inventory/return_page.js' %}"></script>
+  {% endif %}
+{% endblock static %}
 {% block title %}
   {% if taking %}
     Расход
@@ -63,9 +70,4 @@
       {% endif %}
     </form>
   </div>
-  {% if taking %}
-    <script src="{% static 'js/inventory/take_page.js' %}"></script>
-  {% else %}
-    <script src="{% static 'js/inventory/return_page.js' %}"></script>
-  {% endif %}
 {% endblock content %}

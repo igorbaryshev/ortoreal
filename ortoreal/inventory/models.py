@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Iterable, Optional
 
 from django.contrib.auth import get_user_model
@@ -12,18 +13,18 @@ User = get_user_model()
 
 
 class Order(models.Model):
-    current = models.BooleanField("Текущий", default=True)
-    date = models.DateTimeField("Дата", default=timezone.now)
+    current = models.BooleanField("текущий", default=True)
+    date = models.DateTimeField("дата", default=timezone.now)
 
     class Meta:
-        verbose_name = "Заказ"
-        verbose_name_plural = "Заказы"
+        verbose_name = "заказ"
+        verbose_name_plural = "заказы"
 
     def __str__(self) -> str:
-        current = "оформлен"
+        status = "оформлен"
         if self.current:
-            current = "текущий"
-        return f"Заказ {self.id} ({current})"
+            status = "текущий"
+        return f"Заказ {self.id} ({status})"
 
     def get_absolute_url(self):
         url = reverse("inventory:order_by_id", kwargs={"pk": self.pk})
@@ -32,72 +33,62 @@ class Order(models.Model):
         return url
 
 
+class Manufacturer(models.Model):
+    name = models.CharField(
+        max_length=1024, unique=True, blank=False, null=False
+    )
+
+    class Meta:
+        verbose_name = "производитель"
+        verbose_name_plural = "производители"
+
+    def __str__(self):
+        return f"{self.name}"
+
+
 class Vendor(models.Model):
     name = models.CharField(
         max_length=1024, unique=True, blank=False, null=False
     )
 
     class Meta:
-        verbose_name = "Производитель/поставщик"
-        verbose_name_plural = "Производители/поставщики"
+        verbose_name = "поставщик"
+        verbose_name_plural = "поставщики"
 
     def __str__(self):
         return f"{self.name}"
 
 
 class Part(models.Model):
-    class Units(models.TextChoices):
-        PAIRS = "pairs", _("пар")
-        PIECES = "pieces", _("шт.")
-        SETS = "sets", _("компл.")
-        PACKAGES = "packages", _("упак.")
-        ITEMS = "items", _("ед.")
-        METERS = "meters", _("м.")
-
-    vendor_code = models.CharField("Артикул", max_length=256, unique=True)
-    name = models.CharField("Наименование", max_length=1024)
-    units = models.CharField(
-        "Единицы",
-        max_length=32,
-        choices=Units.choices,
-        blank=True,
-        default=Units.ITEMS,
-    )
+    vendor_code = models.CharField("артикул", max_length=256, unique=True)
+    name = models.CharField("наименование", max_length=1024)
+    units = models.CharField("единицы", max_length=100, blank=True, null=True)
     price = models.DecimalField(
-        "Цена, руб.", max_digits=11, decimal_places=2, blank=True, null=True
+        "цена, руб.", max_digits=11, decimal_places=2, blank=True, null=True
     )
-    vendor = models.ForeignKey(
-        Vendor,
-        verbose_name="Производитель/поставщик",
+    manufacturer = models.ForeignKey(
+        Manufacturer,
+        verbose_name="производитель",
         on_delete=models.CASCADE,
         blank=True,
         null=True,
     )
-    note = models.CharField("Примечание", max_length=1024, blank=True)
+    vendor = models.ForeignKey(
+        Vendor,
+        verbose_name="поставщик",
+        on_delete=models.CASCADE,
+        null=True,
+        limit_choices_to=~models.Q(name="2"),
+    )
+    note = models.CharField(
+        "примечание", max_length=1024, blank=True, null=True
+    )
     minimum_remainder = models.SmallIntegerField(
-        "Неснижаемый остаток",
+        "неснижаемый остаток",
         blank=True,
         null=True,
         help_text="Оставьте пустым или 0, чтобы выключить неснижаемый остаток.",
     )
-
-    @property
-    def quantity_s1(self):
-        quantity = self.items.filter(
-            warehouse=Item.Warehouse.S1, job=None
-        ).count()
-        return f"{quantity}"
-
-    quantity_s1.fget.short_description = "Кол-во(С1)"
-
-    @property
-    def quantity_s2(self):
-        quantity = self.items.filter(
-            warehouse=Item.Warehouse.S2, job=None
-        ).count()
-        return f"{quantity}"
-
-    quantity_s2.fget.short_description = "Кол-во(С2)"
 
     @property
     def quantity_total(self):
@@ -105,10 +96,10 @@ class Part(models.Model):
         Кол-во комплектующих, которые
         пришли на склад, и не взяты в работу.
         """
-        total = self.items.filter(job=None, warehouse__isnull=False).count()
+        total = self.items.filter(job=None, arrived=True).count()
         return f"{total}"
 
-    quantity_total.fget.short_description = "Кол-во"
+    quantity_total.fget.short_description = "кол-во"
 
     @classmethod
     def get_field_names(cls):
@@ -116,19 +107,19 @@ class Part(models.Model):
 
     class Meta:
         verbose_name = "модель комплектующей"
-        verbose_name_plural = "Номенклатура"
+        verbose_name_plural = "номенклатура"
 
     def __str__(self) -> str:
         return f"{self.vendor_code} - {self.name}"
 
     def get_absolute_url(self):
-        return reverse("admin:inventory_part_change", kwargs={"pk": self.pk})
+        return reverse("inventory:items", kwargs={"pk": self.pk})
 
 
 class Item(models.Model):
-    class Warehouse(models.IntegerChoices):
-        S1 = 1, _("Склад 1")
-        S2 = 2, _("Склад 2")
+    """
+    Модель комплектующей.
+    """
 
     part = models.ForeignKey(
         Part,
@@ -139,9 +130,8 @@ class Item(models.Model):
         null=False,
     )
     date = models.DateField("Дата", default=timezone.now)
-    warehouse = models.PositiveSmallIntegerField(
-        "Склад", blank=True, null=True, choices=Warehouse.choices
-    )
+    arrived = models.BooleanField("Пришло", default=False)
+    vendor2 = models.BooleanField("Поставщик 2", default=False)
     job = models.ForeignKey(
         Job,
         verbose_name="Работа",
@@ -160,11 +150,14 @@ class Item(models.Model):
     )
     order = models.ForeignKey(
         Order,
-        verbose_name="Заказ",
+        verbose_name="заказ",
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
         related_name="items",
+    )
+    price = models.DecimalField(
+        "цена, руб.", max_digits=11, decimal_places=2, default=Decimal("0.00")
     )
     free_order = models.BooleanField(
         "Свободный заказ",
@@ -172,16 +165,30 @@ class Item(models.Model):
         help_text="Запретить удаление из заказа при пересчёте резервов.",
     )
 
+    @property
+    def in_warehouse(self):
+        if not self.arrived:
+            return False
+        if self.job is not None:
+            return False
+        return True
+
     @classmethod
     def get_field_names(cls):
         return [f.verbose_name for f in cls._meta.fields]
 
     class Meta:
-        verbose_name = "Комплектующая"
-        verbose_name_plural = "Комплектующие"
+        verbose_name = "комплектующая"
+        verbose_name_plural = "комплектующие"
 
     def __str__(self):
-        return self.part.__str__()
+        return self.part.vendor_code
+
+    def get_absolute_url(self):
+        return reverse(
+            f"admin:{self._meta.app_label}_{self._meta.model_name}_change",
+            kwargs={"object_id": self.id},
+        )
 
 
 class InventoryLog(models.Model):
@@ -192,31 +199,31 @@ class InventoryLog(models.Model):
         TAKE = "TAKE", _("Расход")
 
     operation = models.CharField(
-        "Операция", max_length=32, choices=Operation.choices
+        "операция", max_length=32, choices=Operation.choices
     )
     items = models.ManyToManyField(
-        Item, verbose_name="Комплектующие", related_name="logs"
+        Item, verbose_name="комплектующие", related_name="logs"
     )
     job = models.ForeignKey(
         Job,
-        verbose_name="Клиент",
+        verbose_name="клиент",
         on_delete=models.CASCADE,
         blank=True,
         null=True,
     )
     prosthetist = models.ForeignKey(
         User,
-        verbose_name="Протезист",
+        verbose_name="протезист",
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
     )
-    date = models.DateTimeField("Дата", default=timezone.now)
-    comment = models.CharField("Комментарий", max_length=1024, blank=True)
+    date = models.DateTimeField("дата", default=timezone.now)
+    comment = models.CharField("комментарий", max_length=1024, blank=True)
 
     class Meta:
-        verbose_name = "Операция на складе"
-        verbose_name_plural = "Операции на складе"
+        verbose_name = "операция на складе"
+        verbose_name_plural = "операции на складе"
 
     def __str__(self):
         return f"{self.operation}"
@@ -230,15 +237,15 @@ class Prosthesis(models.Model):
         MOSCOW = "Moscow", _("Москва")
         MOSCOW_REGION = "Moscow region", _("Московская область")
 
-    number = models.CharField("Номер изделия", max_length=150, unique=True)
-    kind = models.CharField("Вид", max_length=1024, blank=True)
-    name = models.CharField("Наименование", max_length=1024, blank=True)
-    price = models.DecimalField("Стоимость", max_digits=11, decimal_places=2)
-    region = models.CharField("Регион", max_length=128, choices=Region.choices)
+    number = models.CharField("номер изделия", max_length=150, unique=True)
+    kind = models.CharField("вид", max_length=1024, blank=True)
+    name = models.CharField("наименование", max_length=1024, blank=True)
+    price = models.DecimalField("стоимость", max_digits=11, decimal_places=2)
+    region = models.CharField("регион", max_length=128, choices=Region.choices)
 
     class Meta:
-        verbose_name = "Протез"
-        verbose_name_plural = "Протезы"
+        verbose_name = "протез"
+        verbose_name_plural = "протезы"
 
     def __str__(self) -> str:
         return f"{self.number}"

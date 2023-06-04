@@ -2,13 +2,14 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Case, F, Q, Value, When
 from django.db.models.functions import Concat
-from django.utils.safestring import mark_safe
+from django.utils.html import conditional_escape, mark_safe
 
 import django_tables2 as tables
+from django_tables2.columns.base import LinkTransform, library
 
 from clients.models import Client, Job
-from inventory.models import InventoryLog, Item
-from inventory.utils import dec2pre, get_dec_display
+from inventory.models import InventoryLog, Item, Part
+from inventory.utils import dec2pre, get_dec_display, wrap_in_color
 
 # class ClientsTable(tables.Table):
 #     initials = tables.Column("Пр-т", accessor="prosthetist.initials")
@@ -114,3 +115,72 @@ from inventory.utils import dec2pre, get_dec_display
 
 #     class Meta:
 #         template_name = "django_tables2/bootstrap5-responsive.html"
+
+
+# @library.register
+class ItemsColumn(tables.ManyToManyColumn):
+    def __init__(self, per_line=10, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.per_line = per_line
+
+    def transform(self, obj):
+        status = self.get_status(obj)
+        color = self.get_color(obj)
+        self.attrs["a"] = wrap_in_color(color, link=True)
+        self.linkify_item = LinkTransform(attrs=self.attrs.get("a", {}))
+        return status
+
+    def get_color(self, item):
+        if item.arrived:
+            return "green"
+        if item.order and item.order.current:
+            return "red"
+        return "blue"
+
+    def get_status(self, item):
+        status = "(3)"
+        if item.arrived:
+            status = "(C)"
+        elif item.order and item.order.current:
+            status = "(T)"
+        return item.part.vendor_code + " " + status
+
+    def render(self, value):
+        items = []
+        filtered_items = self.filter(value)
+        for i, item in enumerate(filtered_items):
+            content = self.transform(item)
+            if hasattr(self, "linkify_item"):
+                content = self.linkify_item(content=content, record=item)
+
+            items.append(content)
+            if ((len(items) + 1) % (self.per_line + 1) == 0) and (
+                i < (len(filtered_items) + 1)
+            ):
+                items.append(self.separator)
+
+        return mark_safe(" ".join(items))
+
+
+class ClientProsthesisListTable(tables.Table):
+    items = ItemsColumn(
+        verbose_name="Комплектующие", separator="<br/>", per_line=6
+    )
+    price = tables.Column("Цена", accessor="prosthesis.price")
+    region = tables.Column("Регион", accessor="prosthesis.region")
+
+    def render_status(self, record):
+        return record.status_display
+
+    class Meta:
+        model = Job
+        sequence = (
+            "prosthetist",
+            "prosthesis",
+            "status",
+            "price",
+            "region",
+            "date",
+            "items",
+        )
+        exclude = ("id", "client")
