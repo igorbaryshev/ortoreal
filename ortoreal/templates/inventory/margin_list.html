@@ -1,14 +1,18 @@
 {% extends "base.html" %}
 {% load static %}
+{% load user_filters %}
 {% load django_bootstrap5 %}
+{% bootstrap_css %}
+{% bootstrap_javascript %}
 {% block title %}
-  Номенклатура
+  Маржа
 {% endblock title %}
 {% block static %}
   <link rel="stylesheet" href="{% static "css/table.css" %}"/>
   <script src="{% static 'js/table_row_link.js' %}"></script>
 {% endblock static %}
 {% block content %}
+  {{ filter.form.media }}
   <div class="card-body">
     {% if filter %}
       <form action="" method="get" class="form">
@@ -18,7 +22,7 @@
             {% bootstrap_field field field_class="col" layout="floating" wrapper_class="col me-2 mb-2" %}
           {% endfor %}
         </div>
-        {% bootstrap_button "Фильтровать" %}
+        {% bootstrap_button button_type="submit" content="Фильтровать" %}
       </form>
       <br/>
     {% endif %}

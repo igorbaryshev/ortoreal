@@ -1,6 +1,7 @@
 import io
 import urllib
 from collections import OrderedDict, defaultdict
+from decimal import Decimal
 from typing import Any, Dict, Optional
 
 from django import forms
@@ -8,7 +9,18 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Case, Count, F, Q, QuerySet, Value, When, Window
+from django.db.models import (
+    Case,
+    Count,
+    F,
+    Max,
+    Q,
+    QuerySet,
+    Sum,
+    Value,
+    When,
+    Window,
+)
 from django.db.models.functions import Concat, RowNumber
 from django.db.models.query import QuerySet
 from django.http.response import HttpResponse
@@ -18,31 +30,43 @@ from django.views import View
 from django.views.generic.list import ListView
 
 import django_tables2 as tables
+from django_filters.views import FilterView
 from django_tables2.export.views import ExportMixin
 from django_tables2.paginators import LazyPaginator
 from xlsxwriter.workbook import Workbook
 
 from clients.models import Client, Job
+from inventory.filters import MarginFilter, PartFilter
 from inventory.forms import (
     CommentForm,
     FreeOrderFormSet,
     InventoryAddForm,
     InventoryTakeForm,
-    ItemAddFormSet,
     ItemReturnFormSet,
     ItemTakeFormSet,
     JobSelectForm,
     PartAddFormSet,
     PickPartsFormSet,
     ProsthesisSelectForm,
+    ReceptionItemFormSet,
 )
-from inventory.models import InventoryLog, Item, Order, Part, Prosthesis
+from inventory.models import (
+    InventoryLog,
+    Item,
+    Order,
+    Part,
+    Prosthesis,
+    Vendor,
+)
 from inventory.tables import (
     InventoryLogItemsTable,
     InventoryLogsTable,
     JobSetsTable,
+    MarginTable,
+    NomenclatureTable,
     OrdersTable,
     OrderTable,
+    PartItemsTable,
     VendorExportTable,
     VendorOrderTable,
 )
@@ -57,7 +81,7 @@ from inventory.utils import (
     reorg_reserves,
 )
 
-PARTS_PER_PAGE = 15
+PARTS_PER_PAGE = 20
 
 
 class LoginRequiredMixin(LoginRequiredMixin):
@@ -65,64 +89,73 @@ class LoginRequiredMixin(LoginRequiredMixin):
     redirect_field_name = "next"
 
 
-def nomenclature(request):
+class NomenclatureListView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    tables.SingleTableMixin,
+    FilterView,
+):
     """
-    Номенклатура.
+    View номенклатуры.
     """
-    table_head = Part.get_field_names() + [
-        "Склад 1",
-        "Склад 2",
-        "Всего",
-        "Единицы",
-    ]
-    parts_list = Part.objects.order_by("vendor_code").prefetch_related("items")
-    paginator = Paginator(parts_list, PARTS_PER_PAGE)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-    context = {
-        "table_head": table_head,
-        "page_obj": page_obj,
-    }
 
-    return render(request, "inventory/nomenclature.html", context)
+    table_class = NomenclatureTable
+    model = Part
+    paginate_by = PARTS_PER_PAGE
+    template_name = "inventory/nomenclature.html"
+
+    filterset_class = PartFilter
+
+    def test_func(self) -> bool:
+        return self.request.user.is_manager
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Part.objects.order_by("vendor_code")
+        return queryset
 
 
-def items(request, pk):
+class PartItemsListView(
+    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
+):
     """
-    Список комплектующих на складе.
+    View списка комплектующих данной модели на складе.
     """
-    part = get_object_or_404(Part, pk=pk)
-    items_list = part.items.order_by("id")
-    table_head = ["ID"] + Item.get_field_names()[2:]
-    paginator = Paginator(items_list, 20)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-    context = {
-        "part": part,
-        "table_head": table_head,
-        "page_obj": page_obj,
-    }
 
-    return render(request, "inventory/items.html", context)
+    table_class = PartItemsTable
+    paginate_by = PARTS_PER_PAGE
+
+    def test_func(self) -> bool:
+        return self.request.user.is_manager
+
+    def get_part(self):
+        pk = self.kwargs.get("pk")
+        part = get_object_or_404(Part, pk=pk)
+        return part
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Item.objects.filter(
+            part=self.get_part(), job=None, arrived=True
+        ).order_by("-date")
+        return queryset
 
 
-class AddItemsView(LoginRequiredMixin, View):
+class ReceptionView(LoginRequiredMixin, View):
     """
     Приход.
     """
 
     def get(self, request, *args, **kwargs):
-        form = InventoryAddForm(prefix="entry")
-        formset = ItemAddFormSet(prefix="item")
+        form = InventoryAddForm()
+        formset = ReceptionItemFormSet()
         context = {
             "form": form,
             "formset": formset,
         }
-        return render(request, "inventory/add_items.html", context)
+        return render(request, "inventory/reception.html", context)
 
     def post(self, request, *args, **kwargs):
-        form = InventoryAddForm(data=request.POST, prefix="entry")
-        formset = ItemAddFormSet(data=request.POST, prefix="item")
+        form = InventoryAddForm(request.POST)
+        formset = ReceptionItemFormSet(request.POST)
         if form.is_valid() and formset.is_valid() and formset.forms:
             date = form.cleaned_data["date"]
             operation = InventoryLog.Operation.RECEPTION
@@ -130,10 +163,11 @@ class AddItemsView(LoginRequiredMixin, View):
             # фильтр: не назначен склад, не в текущем заказе,
             # сортировка по дате резерва, без резерва - в последнюю очередь
             ordered_items = Item.objects.filter(
-                warehouse__isnull=True, order__current=False
+                arrived=False, order__current=False
             ).order_by(F("reserved__date").asc(nulls_last=True), F("id").asc())
-            for formset_form in formset:
-                quantity = formset_form.cleaned_data["quantity"]
+            for fs_form in formset:
+                print(fs_form.cleaned_data["quantity"])
+                quantity = fs_form.cleaned_data["quantity"]
                 # Если кол-во не указано или <= 0, то пропустить
                 if quantity is None or quantity <= 0:
                     continue
@@ -143,8 +177,9 @@ class AddItemsView(LoginRequiredMixin, View):
                 )
                 log.save()
                 log = InventoryLog.objects.get(id=log.id)
-                part = formset_form.cleaned_data["part"]
-                warehouse = formset_form.cleaned_data["warehouse"]
+                part = fs_form.cleaned_data["part"]
+                price = fs_form.cleaned_data["price"]
+                vendor2 = fs_form.cleaned_data["vendor2"]
                 matching_ordered = ordered_items.filter(part=part)
                 # Проверяем, есть ли пришедшие в заказанных,
                 # добавляем склад и заменяем дату на дату прихода
@@ -158,25 +193,40 @@ class AddItemsView(LoginRequiredMixin, View):
                         # обнуляем кол-во, чтобы не создавать новые записи
                         quantity = 0
                     for item in matching_ordered[:match_quantity]:
-                        item.warehouse, item.date = warehouse, date
+                        item.date = date
+                        item.arrived = True
+                        item.vendor2 = vendor2
                         batch_update_items.append(item)
                 # Если в приходе больше, чем заказанных,
                 # создаём записи для остальных
                 if quantity:
                     batch_create_items = [
-                        Item(part=part, warehouse=warehouse, date=date)
+                        Item(
+                            part=part,
+                            arrived=True,
+                            vendor2=vendor2,
+                            price=price,
+                            date=date,
+                        )
                     ] * quantity
                     Item.objects.bulk_create(batch_create_items)
                 # Берём только что созданные записи для добавления в историю
                 created_items = list(
                     Item.objects.filter(
-                        date=date, part=part, logs=None, order=None
+                        date=date,
+                        part=part,
+                        logs=None,
+                        order=None,
+                        arrived=True,
                     )
                 )
+                # Объединяем созданные и обновляемые записи для лога
                 log_items = created_items + batch_update_items
                 log.items.set(log_items)
                 log.save()
-            Item.objects.bulk_update(batch_update_items, ["warehouse", "date"])
+            Item.objects.bulk_update(
+                batch_update_items, ["date", "arrived", "price"]
+            )
 
             return redirect("inventory:logs")
 
@@ -185,7 +235,7 @@ class AddItemsView(LoginRequiredMixin, View):
             "formset": formset,
         }
 
-        return render(request, "inventory/add_items.html", context)
+        return render(request, "inventory/reception.html", context)
 
 
 class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -203,7 +253,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def post(self, request, *args, **kwargs):
         form = InventoryTakeForm(request.user, request.POST)
-        formset = ItemTakeFormSet(data=request.POST, prefix="item")
+        formset = ItemTakeFormSet(request.POST)
         if form.is_valid():
             job = form.cleaned_data["job"]
             # queryset для выбора комплектующих
@@ -212,7 +262,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
             # что будет означать, что клиент в форме не изменился
             if formset.forms:
                 formset = ItemTakeFormSet(
-                    request.POST, form_kwargs=form_kwargs, prefix="item"
+                    request.POST, form_kwargs=form_kwargs
                 )
                 if formset.is_valid():
                     comment = form.cleaned_data["comment"]
@@ -221,7 +271,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                     # записываем комплектующие, чтобы избавиться от повторов
                     parts = []
                     items_filter = (
-                        Q(warehouse__isnull=False)
+                        Q(arrived=True)
                         & Q(job=None)
                         & (
                             Q(reserved=job)
@@ -229,12 +279,12 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                             | Q(reserved__date__gt=job.date)
                         )
                     )
-                    for formset_form in formset:
-                        quantity = formset_form.cleaned_data["quantity"]
+                    for fs_form in formset:
+                        quantity = fs_form.cleaned_data["quantity"]
                         # Если кол-во не указано или <= 0, то пропустить
                         if quantity is None or quantity <= 0:
                             continue
-                        part = formset_form.cleaned_data["part"]
+                        part = fs_form.cleaned_data["part"]
                         # Если модель комплектующего повторилась, то пропустить
                         if part in parts:
                             continue
@@ -242,7 +292,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                         # фильтруем: в первую очередь самые старые со склада 2
                         items = Item.objects.filter(
                             items_filter & Q(part=part)
-                        ).order_by("-warehouse", "date")[:quantity]
+                        ).order_by("-vendor2", "date")[:quantity]
                         log = InventoryLog(
                             operation=operation,
                             job=job,
@@ -290,9 +340,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                     return redirect("inventory:nomenclature")
             # если клиент в форме изменился, меняем queryset в формсете
             else:
-                formset = ItemTakeFormSet(
-                    form_kwargs=form_kwargs, prefix="item"
-                )
+                formset = ItemTakeFormSet(form_kwargs=form_kwargs)
 
         context = {"form": form, "taking": True, "formset": formset}
         return render(request, "inventory/take_return_items.html", context)
@@ -300,7 +348,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
     def get_queryset(self, job):
         # разрешить брать из чужих резервов, если они новее
         qs_filter = (
-            Q(items__warehouse__isnull=False)
+            Q(items__arrived=True)
             & Q(items__job=None)
             & (
                 Q(items__reserved=job)
@@ -338,21 +386,19 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 formset = ItemReturnFormSet(
                     None, initial=queryset, prefix="item"
                 )
-                for i, formset_form in enumerate(formset):
+                for i, fs_form in enumerate(formset):
                     part = queryset[i]
                     max_parts = part["max_parts"]
-                    units = Part.objects.get(
-                        id=part["part_id"]
-                    ).get_units_display()
-                    formset_form.fields["quantity"].widget.attrs.update(
+                    units = Part.objects.get(id=part["part_id"]).units or ""
+                    fs_form.fields["quantity"].widget.attrs.update(
                         {
                             "max": max_parts,
                             "placeholder": f"не больше {max_parts} {units}",
                         }
                     )
             elif formset.is_valid():
-                # возвращаем в приоритете самые новые со склада 1
-                job_items = job.items.order_by("warehouse", "-date", "-id")
+                # возвращаем в приоритете самые новые не от поставщика 2
+                job_items = job.items.order_by("vendor2", "-date", "-id")
                 comment = form.cleaned_data["comment"]
                 operation = InventoryLog.Operation.RETURN
                 # сюда записываем какие модели комплектующих были возвращены
@@ -362,12 +408,12 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 batch_items = []
                 # партия резервов на массовое обновление
                 batch_reserved = []
-                for formset_form in formset:
-                    quantity = formset_form.cleaned_data["quantity"]
+                for fs_form in formset:
+                    quantity = fs_form.cleaned_data["quantity"]
                     # Если кол-во не указано или <= 0, то пропустить
                     if quantity is None or quantity <= 0:
                         continue
-                    part_id = formset_form.cleaned_data["part_id"]
+                    part_id = fs_form.cleaned_data["part_id"]
                     part = get_object_or_404(Part, id=part_id)
                     parts.append((part, quantity))
                     # срезаем кол-во которое нужно вернуть
@@ -423,7 +469,7 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    # View выбора комплектующих протезистом, и дозаказ недостающих.
+    View выбора комплектующих протезистом, и дозаказ недостающих.
     """
 
     def test_func(self) -> bool:
@@ -461,12 +507,12 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 # записываем модели комплектующих в текущем резерве
                 initial_parts = dict(queryset.values_list("id", "quantity"))
                 parts = []
-                for formset_form in formset:
-                    part = formset_form.cleaned_data["part"]
+                for fs_form in formset:
+                    part = fs_form.cleaned_data["part"]
                     if part.id in parts:
                         continue
                     parts.append(part.id)
-                    quantity = formset_form.cleaned_data["quantity"]
+                    quantity = fs_form.cleaned_data["quantity"]
                     if part.id in initial_parts:
                         old_quantity = initial_parts[part.id]
                         # если указанное кол-во больше исходного,
@@ -531,15 +577,21 @@ class FreeOrderAddView(LoginRequiredMixin, UserPassesTestMixin, View):
         if formset.forms and formset.is_valid():
             order = get_object_or_404(Order, current=True)
             batch_create = []
-            for formset_form in formset:
-                quantity = formset_form.cleaned_data["quantity"]
+            for fs_form in formset:
+                quantity = fs_form.cleaned_data["quantity"]
                 # Если кол-во не указано или <= 0, то пропустить
                 if quantity is None or quantity <= 0:
                     continue
-                part = formset_form.cleaned_data["part"]
+                part = fs_form.cleaned_data["part"]
                 print(part)
+                price = part.items.aggregate(Max("price")).get(
+                    "price__max", Decimal("0.00")
+                )
+                if price is None:
+                    price = Decimal("0.00")
+                print(price)
                 batch_create += [
-                    Item(part=part, order=order, free_order=True)
+                    Item(part=part, order=order, free_order=True, price=price)
                 ] * quantity
 
             Item.objects.bulk_create(batch_create)
@@ -755,8 +807,8 @@ class OrderView(
             .annotate(
                 row=Window(RowNumber()),
                 vendor_code=F("part__vendor_code"),
-                price=F("part__price"),
-                quantity=Count("vendor_code"),
+                price=Max("price"),
+                quantity=Count("part"),
                 vendor=F("part__vendor__name"),
                 price_mul=F("quantity") * F("price"),
             )
@@ -785,11 +837,9 @@ class OrdersView(
     View списка всех заказов.
     """
 
-    ORDERS_PER_PAGE = 30
-
     table_class = OrdersTable
     paginator_class = LazyPaginator
-    paginate_by = ORDERS_PER_PAGE
+    paginate_by = PARTS_PER_PAGE
 
     def test_func(self) -> bool:
         if self.request.user.is_staff or self.request.user.is_manager:
@@ -875,7 +925,7 @@ class InventoryLogsListView(tables.SingleTableView):
 
 
 class InventoryLogsDetailView(tables.SingleTableView):
-    table_class = InventoryLogItemsTable
+    table_class = PartItemsTable
     paginator_class = LazyPaginator
     paginate_by = 30
 
@@ -886,33 +936,6 @@ class InventoryLogsDetailView(tables.SingleTableView):
     def get_queryset(self) -> QuerySet[Any]:
         queryset = self.get_log().items.order_by("-id")
         return queryset
-
-
-class JobSetsView(
-    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
-):
-    """
-    View комплектов клиентов протезиста.
-    """
-
-    table_class = JobSetsTable
-    paginator_class = LazyPaginator
-    paginate_by = 30
-
-    def test_func(self) -> bool:
-        return self.request.user.is_prosthetist
-
-    def get_queryset(self) -> QuerySet[Any]:
-        queryset = Job.objects.filter(prosthetist=self.request.user).order_by(
-            "-date"
-        )
-        return queryset
-
-    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
-        context = super().get_context_data(**kwargs)
-        context["title"] = f"{self.request.user}. Клиенты."
-
-        return context
 
 
 class JobSetView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -944,6 +967,33 @@ class JobSetView(LoginRequiredMixin, UserPassesTestMixin, View):
         return queryset
 
 
+class JobSetsView(
+    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
+):
+    """
+    View комплектов клиентов протезиста.
+    """
+
+    table_class = JobSetsTable
+    paginator_class = LazyPaginator
+    paginate_by = PARTS_PER_PAGE
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Job.objects.filter(prosthetist=self.request.user).order_by(
+            "-date"
+        )
+        return queryset
+
+    def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context["title"] = f"{self.request.user}. Клиенты."
+
+        return context
+
+
 class AllJobSetsView(JobSetsView):
     """
     View комплектов всех клиентов для менеджера.
@@ -963,3 +1013,38 @@ class AllJobSetsView(JobSetsView):
         context["title"] = "Все клиенты."
 
         return context
+
+
+class MarginView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    tables.SingleTableMixin,
+    FilterView,
+):
+    """
+    View таблицы маржи.
+    """
+
+    table_class = MarginTable
+    paginate_by = PARTS_PER_PAGE
+    filterset_class = MarginFilter
+    template_name = "inventory/margin_list.html"
+
+    def test_func(self) -> bool | None:
+        return self.request.user.is_manager
+
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self) -> QuerySet[Any]:
+        queryset = Job.objects.annotate(
+            price_items=Sum("items__price"),
+            price=Case(
+                When(prosthesis__price__isnull=True, then=Decimal("0.00")),
+                default=F("prosthesis__price"),
+            ),
+            margin=F("price") - F("price_items") - Decimal("60000.00"),
+        )
+        for job in queryset:
+            print(job.margin)
+        return queryset

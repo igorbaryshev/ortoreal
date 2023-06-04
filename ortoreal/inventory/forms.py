@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -85,24 +87,34 @@ class ItemForm(forms.ModelForm):
         part_field = self.fields["part"]
         part_field.empty_label = "---выбрать---"
         part_field.queryset = part_field.queryset.order_by("vendor_code")
+        if "price" in self.fields:
+            self.fields["price"].widget.attrs["class"] = "text-end"
+        self.fields["quantity"].widget.attrs["class"] = "text-center"
 
 
-class ItemAddForm(ItemForm):
+class ReceptionItemForm(ItemForm):
     """
-    Форма прихода комплектующих на склад.
+    Форма прихода модели комплектующей на склад.
     """
 
-    warehouse = forms.ChoiceField(
-        label="Склад", choices=Item.Warehouse.choices, required=True
+    # warehouse = forms.ChoiceField(
+    # label="Склад", choices=Item.Warehouse.choices, required=True
+    # )
+    vendor2 = forms.BooleanField(label="Поставщик 2", required=False)
+    price = forms.DecimalField(
+        label="Цена, руб.",
+        required=True,
+        initial=Decimal("0.00"),
     )
 
     class Meta:
         model = Item
-        fields = ("part", "warehouse", "quantity")
+        fields = ("part", "quantity", "price", "vendor2")
 
 
-ItemAddFormSet = forms.formset_factory(
-    ItemAddForm,
+# Формсет прихода комплектующих
+ReceptionItemFormSet = forms.formset_factory(
+    ReceptionItemForm,
     extra=1,
 )
 
@@ -227,6 +239,7 @@ class PickPartForm(forms.Form):
         part_field = self.fields["part"]
         part_field.empty_label = "---выбрать---"
         part_field.queryset = part_field.queryset.order_by("vendor_code")
+        self.fields["quantity"].widget.attrs["class"] = "text-center"
 
 
 PickPartsFormSet = forms.formset_factory(form=PickPartForm, extra=1)
@@ -235,7 +248,14 @@ PickPartsFormSet = forms.formset_factory(form=PickPartForm, extra=1)
 class PartAddForm(forms.ModelForm):
     class Meta:
         model = Part
-        fields = ("vendor_code", "name", "units", "price", "vendor", "note")
+        fields = (
+            "vendor_code",
+            "name",
+            "units",
+            "price",
+            "manufacturer",
+            "note",
+        )
 
 
 PartAddFormSet = forms.modelformset_factory(

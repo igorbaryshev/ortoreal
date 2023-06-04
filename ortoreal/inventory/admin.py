@@ -41,12 +41,11 @@ class PartAdmin(admin.ModelAdmin):
         "name",
         "price",
         "quantity_total",
-        "quantity_s1",
-        "quantity_s2",
         "units",
-        "vendor",
+        "manufacturer",
         "note",
     )
+    list_display_links = list_display
     search_fields = ("vendor_code", "name")
 
 
@@ -57,15 +56,20 @@ class InventoryLogAdmin(admin.ModelAdmin):
         "operation",
         # "vendor_code",
         # "part_name",
-        # "quantity",
+        "quantity",
         "prosthetist",
         "date",
         "comment",
     )
     # list_display_links = ("id", "operation", "vendor_code", "part_name")
     search_fields = ("items__part__vendor_code", "items__part__name")
+
     # исправить позже
     # autocomplete_fields = ("part",)
+    def quantity(self, obj):
+        return obj.items.count()
+
+    quantity.short_description = "кол-во"
 
 
 @admin.register(Item)
@@ -74,7 +78,7 @@ class ItemAdmin(admin.ModelAdmin):
         "id",
         "vendor_code",
         "name",
-        "warehouse",
+        "arrived",
         "job",
         "reserved",
         "date",
@@ -83,6 +87,7 @@ class ItemAdmin(admin.ModelAdmin):
     )
     list_display_links = list_display
     search_fields = ("part__vendor_code", "part__name")
+    autocomplete_fields = ("part",)
 
     def vendor_code(self, obj):
         return obj.part.vendor_code

@@ -94,17 +94,26 @@ class Client(models.Model):
     def get_phone_display(self):
         return self.phone.as_national.replace(" ", "")
 
+    def get_full_name(self):
+        full_name = f"{self.last_name} {self.first_name}"
+        if self.surname:
+            full_name += " " + self.surname
+        return full_name
+
     class Meta:
         verbose_name = "Клиент"
         verbose_name_plural = "Клиенты"
 
     def __str__(self) -> str:
-        return f"{self.last_name} {self.first_name} {self.surname}"
+        return self.get_full_name()
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         # if self.status:
         #     Status.objects.create(name=self.status, client=self)
+
+    def get_absolute_url(self):
+        return reverse("clients:client", kwargs={"pk": self.pk})
 
 
 class Contact(models.Model):
