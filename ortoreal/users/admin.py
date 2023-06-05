@@ -31,6 +31,7 @@ class MyUserAdmin(UserAdmin):
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
     )
     list_display = ("name", "is_prosthetist", "is_manager", "id")
+    list_display_links = list_display
     list_filter = (
         "is_prosthetist",
         "is_manager",
@@ -43,4 +44,4 @@ class MyUserAdmin(UserAdmin):
     def name(self, obj):
         return obj
 
-    name.short_description = "ФИО"
+    name.short_description = "Имя"
