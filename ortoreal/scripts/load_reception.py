@@ -35,13 +35,11 @@ def run():
 
             date = make_aware(datetime.strptime(date, "%d-%m-%y"))
 
-            warehouse = Item.Warehouse.S1
             vendor2 = False
             if vendor == "2":
-                warehouse = Item.Warehouse.S2
                 vendor2 = True
 
-            if warehouse == Item.Warehouse.S1 or part.price is None:
+            if part.price is None:
                 part.price = price
 
             part.save()
@@ -51,7 +49,6 @@ def run():
                     part=part,
                     price=price,
                     date=date,
-                    warehouse=warehouse,
                     vendor2=vendor2,
                     arrived=True,
                 )
