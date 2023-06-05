@@ -107,7 +107,7 @@ class NomenclatureListView(
     filterset_class = PartFilter
 
     def test_func(self) -> bool:
-        return self.request.user.is_manager
+        return self.request.user.is_manager or self.request.user.is_staff
 
     def get_queryset(self) -> QuerySet[Any]:
         queryset = Part.objects.order_by("vendor_code")
