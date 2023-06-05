@@ -4,6 +4,7 @@ from django.db.models import Sum
 from inventory.models import (
     InventoryLog,
     Item,
+    Manufacturer,
     Order,
     Part,
     Prosthesis,
@@ -43,6 +44,7 @@ class PartAdmin(admin.ModelAdmin):
         "quantity_total",
         "units",
         "manufacturer",
+        "vendor",
         "note",
     )
     list_display_links = list_display
@@ -102,6 +104,11 @@ class ItemAdmin(admin.ModelAdmin):
 
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+
+
+@admin.register(Manufacturer)
+class ManufacturerAdmin(admin.ModelAdmin):
     list_display = ("name",)
 
 
