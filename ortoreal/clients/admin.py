@@ -1,11 +1,12 @@
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.db import models
-from django.forms import Textarea, ModelForm
+from django.forms import ModelForm, Textarea
 from django.utils.html import format_html_join
 from django.utils.safestring import mark_safe
 
 from clients.models import Client, Contact, Job, Status
+from inventory.models import Item
 
 User = get_user_model()
 
@@ -53,7 +54,7 @@ class ClientAdmin(admin.ModelAdmin):
         "how_contacted",
         "prosthetist",
         "region",
-    #    "admin_status_display",
+        #    "admin_status_display",
         "passport",
         "IPR",
         "SprMSE",
@@ -84,8 +85,16 @@ class ClientAdmin(admin.ModelAdmin):
     }
 
 
+class ItemInline(admin.TabularInline):
+    model = Item
+    fk_name = "reserved"
+
+
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
+    inlines = [
+        ItemInline,
+    ]
     list_display = ("prosthesis", "client", "prosthetist", "date", "status")
 
 

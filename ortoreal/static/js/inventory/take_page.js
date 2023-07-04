@@ -51,6 +51,10 @@ $(document).ready(function () {
     form.querySelector('[name$="-quantity"]').value = "0";
   }
 
+  if (formNum) {
+    var firstForm = forms[0].cloneNode(true);
+  }
+
   if (formNum == 1) {
     $("#remove-form").hide();
   }
@@ -77,7 +81,6 @@ $(document).ready(function () {
   }
 
   function addForm(e) {
-    e.preventDefault();
     let form = firstForm.cloneNode(true);
     let formRegex = RegExp(`form-(\\d){1,3}-`, "g");
 
@@ -117,18 +120,16 @@ $(document).ready(function () {
     $(this).closest(".input-row").children("td").removeClass("alert-td");
   }
 
-  fullForm.on("change", '[id$="-part"]:last', addMore);
-
   function addMore(e) {
     if ($(this).val()) {
       addForm(e);
     }
   }
 
+  fullForm.on("change", '[id$="-part"]:last', addMore);
+
   /* Если в формсете есть формы, то... */
   if (formNum) {
-    var firstForm = forms[0].cloneNode(true);
-
     addButton.addEventListener("click", addForm);
     removeButton.addEventListener("click", removeForm);
     /*submitButton.addEventListener('click', removeLastEmpty);*/

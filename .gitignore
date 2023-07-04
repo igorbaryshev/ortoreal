@@ -133,3 +133,6 @@ dmypy.json
 
 # import
 */scripts/import/
+
+.idea
+.vscode

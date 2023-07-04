@@ -46,7 +46,7 @@ class InventoryTakeForm(forms.ModelForm):
     """
 
     job = forms.ModelChoiceField(
-        queryset=Job.objects.none(),
+        queryset=Job.objects.order_by("-client"),
         label="Клиент",
         widget=forms.Select(
             attrs={
@@ -63,9 +63,12 @@ class InventoryTakeForm(forms.ModelForm):
 
     def __init__(self, user, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.fields["job"].queryset = Job.objects.filter(
-            prosthetist=user
-        ).order_by("-client")
+        if user.is_prosthetist:
+            self.fields["job"].queryset = (
+                self.fields["job"]
+                .queryset.filter(prosthetist=user)
+                .order_by("-client")
+            )
 
         self.fields["job"].empty_label = "---выбрать---"
 

@@ -1,6 +1,6 @@
 {% load static %}
 <header>
-  <link rel="stylesheet" href="{% static "css/header.css" %}"/>
+  <link rel="stylesheet" href="{% static "css/header.css" %}" />
   <nav class="navbar navbar-expand-md navbar-light"
        style="background-color: lightgrey">
     <div class="container">
@@ -30,46 +30,35 @@
           <ul class="nav nav-pills ms-auto">
             <li class="nav-item">
               <a class="nav-link{% if view_name == 'inventory:nomenclature' %} active{% endif %}"
-                 href="{% url 'inventory:nomenclature' %}">
-                Номенклатура
-              </a>
+                 href="{% url 'inventory:nomenclature' %}">Номенклатура</a>
             </li>
             <li class="nav-item">
               <a class="nav-link{% if view_name == 'inventory:margins' %} active{% endif %}"
-                 href="{% url 'inventory:margins' %}">
-                Маржа
-              </a>
+                 href="{% url 'inventory:margins' %}">Маржа</a>
             </li>
             <li class="nav-item">
               <a class="nav-link{% if view_name == 'inventory:orders' or view_name == 'inventory:order' or view_name == 'invenotry:order_by_id' %} active{% endif %}"
-                 href="{% url 'inventory:orders' %}">
-                Заказы
-              </a>
+                 href="{% url 'inventory:orders' %}">Заказы</a>
             </li>
             {% comment %}
             <li class="nav-item">
-              <a class="nav-link{% if view_name == 'clients:contacts' %} active{% endif %}"
-                 href="{% url 'clients:contacts' %}">
+              <a class="nav-link{% if view_name == 'clients:contacts' %} active{% endif %}" href="{% url 'clients:contacts' %}">
                 Обращения
               </a>
             </li>
             {% endcomment %}
             <li class="nav-item">
               <a class="nav-link{% if view_name == 'inventory:reception' %} active{% endif %}"
-                 href="{% url 'inventory:reception' %}">
-                Приход
-              </a>
+                 href="{% url 'inventory:reception' %}">Приход</a>
             </li>
             <li class="nav-item">
               <a class="nav-link text-wrap{% if view_name == 'inventory:logs' %} active{% endif %}"
-                 href="{% url 'inventory:logs' %}">
-                Операции
-              </a>
+                 href="{% url 'inventory:logs' %}">Операции</a>
             </li>
             {% if user.is_manager or user.is_prosthetist %}
               <li class="nav-item">
                 <a class="nav-link text-wrap{% if view_name == 'inventory:all_job_sets' or view_name == 'inventory:job_sets' %} active{% endif %}"
-                {% if user.is_manager %}
+                   {% if user.is_manager %}
                    href="{% url 'inventory:all_job_sets' %}">
                 {% elif user.is_prosthetist %}
                   href="{% url 'inventory:job_sets' %}">
@@ -78,30 +67,24 @@
               </a>
             </li>
           {% endif %}
-          {% if user.is_prosthetist %}
+          {% if user.is_prosthetist or user.is_manager %}
             <li class="nav-item">
               <a class="nav-link text-wrap{% if view_name == 'inventory:pick_parts' %} active{% endif %}"
-                 href="{% url 'inventory:pick_parts' %}">
-                Выбор комплектации
-              </a>
+                 href="{% url 'inventory:pick_parts' %}">Выбор комплектации</a>
             </li>
             <li class="nav-item">
               <div class="btn-group" role="group">
                 <a class="btn btn-warning{% if view_name == 'inventory:take_items' %} active{% endif %}"
-                   href="{% url 'inventory:take_items' %}">
-                  Взять
-                </a>
+                   href="{% url 'inventory:take_items' %}">Взять</a>
                 <a class="btn btn-danger{% if view_name == 'inventory:return_items' %} active{% endif %}"
-                   href="{% url 'inventory:return_items' %}">
-                  Вернуть
-                </a>
+                   href="{% url 'inventory:return_items' %}">Вернуть</a>
               </div>
             </li>
           {% endif %}
           {% if user.is_authenticated %}
             {% comment %}
             <li class="nav-item"> 
-              <a class="nav-link {% if view_name == 'posts:post_create' %} active {% endif %}" href="{% url 'posts:post_create' %}">
+              <a class="nav-link {% if view_name == 'posts:post_create' %}active{% endif %}" href="{% url 'posts:post_create' %}">
                 Новая запись
               </a>
             </li>

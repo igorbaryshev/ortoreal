@@ -240,11 +240,11 @@ class ReceptionView(LoginRequiredMixin, View):
 
 class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    View взятия комплектующих протезистом.
+    View расхода комплектующих протезистом.
     """
 
     def test_func(self) -> bool:
-        return self.request.user.is_prosthetist
+        return self.request.user.is_prosthetist or self.request.user.is_manager
 
     def get(self, request, *args, **kwargs):
         form = InventoryTakeForm(request.user)
@@ -296,7 +296,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                         log = InventoryLog(
                             operation=operation,
                             job=job,
-                            prosthetist=request.user,
+                            prosthetist=job.prosthetist,
                             comment=comment,
                         )
                         # сохраняем операцию, чтобы создать
@@ -306,9 +306,9 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                         log.items.set(items)
                         log.save()
                         batch_items += list(items)
-                    # словарь моделей комплектующих, в которых упорядоченно
-                    # хранятся работы с кол-вом комплектующих,
-                    # для которых нужен новый резерв
+                    # упорядоченный словарь моделей комплектующих, в которых
+                    # хранятся работы с кол-вом комплектующих
+                    # для нового резерва
                     parts_to_reserve = defaultdict(OrderedCounter)
                     for item in batch_items:
                         # если комплектующая была взята из чужого резерва,
@@ -368,7 +368,7 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
 
     def test_func(self) -> bool:
-        return self.request.user.is_prosthetist
+        return self.request.user.is_prosthetist or self.request.user.is_manager
 
     def get(self, request, *args, **kwargs):
         form = InventoryTakeForm(request.user)
