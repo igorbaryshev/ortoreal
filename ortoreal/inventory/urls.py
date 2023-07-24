@@ -19,7 +19,12 @@ urlpatterns = [
         name="free_order_edit",
     ),
     path("orders/<int:pk>/", views.OrderView.as_view(), name="order_by_id"),
-    path("orders/download/", views.export_orders, name="export_order"),
+    path(
+        "orders/current/download/", views.export_orders, name="export_current"
+    ),
+    path(
+        "orders/<int:pk>/download/", views.export_orders, name="export_orders"
+    ),
     path("orders/add/", views.FreeOrderAddView.as_view(), name="free_order"),
     path("logs/", views.InventoryLogsListView.as_view(), name="logs"),
     path(

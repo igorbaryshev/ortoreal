@@ -1,5 +1,4 @@
 from decimal import Decimal
-from typing import Iterable, Optional
 
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -7,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from clients.models import Client, Job
+from clients.models import Job
 
 User = get_user_model()
 
@@ -85,9 +84,7 @@ class Part(models.Model):
     )
     minimum_remainder = models.SmallIntegerField(
         "неснижаемый остаток",
-        blank=True,
-        null=True,
-        help_text="Оставьте пустым или 0, чтобы выключить неснижаемый остаток.",
+        default=0,
     )
 
     @property
@@ -182,7 +179,7 @@ class Item(models.Model):
         verbose_name_plural = "комплектующие"
 
     def __str__(self):
-        return self.part.vendor_code
+        return str(self.part.vendor_code)
 
     def get_absolute_url(self):
         return reverse(
@@ -237,9 +234,17 @@ class Prosthesis(models.Model):
         MOSCOW = "Moscow", _("Москва")
         MOSCOW_REGION = "Moscow region", _("Московская область")
 
-    number = models.CharField("номер изделия", max_length=150, unique=True)
-    kind = models.CharField("вид", max_length=1024, blank=True)
-    name = models.CharField("наименование", max_length=1024, blank=True)
+    class ProsthesisType(models.TextChoices):
+        T1 = 1, "тип 1"
+        T2 = 2, "тип 2"
+        T3 = 3, "тип 3"
+        T4 = 4, "тип 4"
+
+    number = models.CharField("артикул", max_length=512, unique=True)
+    kind = models.CharField(
+        "тип", max_length=1024, blank=True, choices=ProsthesisType.choices
+    )
+    # name = models.CharField("наименование", max_length=1024, blank=True)
     price = models.DecimalField("стоимость", max_digits=11, decimal_places=2)
     region = models.CharField("регион", max_length=128, choices=Region.choices)
 

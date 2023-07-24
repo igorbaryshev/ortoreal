@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -5,7 +6,14 @@ from django.forms import ModelForm, Textarea
 from django.utils.html import format_html_join
 from django.utils.safestring import mark_safe
 
-from clients.models import Client, Contact, Job, Status
+from clients.models import (
+    Client,
+    Comment,
+    Contact,
+    ContactTypeChoice,
+    Job,
+    Status,
+)
 from inventory.models import Item
 
 User = get_user_model()
@@ -19,8 +27,32 @@ class ClientAdminForm(ModelForm):
         )
 
 
+class JobAdminForm(ModelForm):
+    def clean(self):
+        client = self.cleaned_data["client"]
+        prosthesis = self.cleaned_data["prosthesis"]
+        if client.region != prosthesis.region:
+            raise forms.ValidationError(
+                {
+                    "prosthesis": "регион протеза не может отличаться от региона клиента"
+                }
+            )
+
+
+class CommentInline(admin.TabularInline):
+    model = Comment
+    fk_name = "contact"
+    extra = 1
+    formfield_overrides = {
+        models.TextField: {"widget": Textarea(attrs={"rows": 2, "cols": 60})},
+    }
+
+
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
+    inlines = [
+        CommentInline,
+    ]
     list_display = (
         "full_name",
         "call_date",
@@ -34,7 +66,7 @@ class ContactAdmin(admin.ModelAdmin):
     def full_name(self, obj):
         return obj.__str__()
 
-    full_name.short_description = "ФИО Клиента"
+    full_name.short_description = "ФИО клиента"
 
     formfield_overrides = {
         models.TextField: {"widget": Textarea(attrs={"rows": 2, "cols": 60})},
@@ -47,18 +79,19 @@ class ClientAdmin(admin.ModelAdmin):
 
     list_display = (
         "full_name",
-        "contract_date",
-        "act_date",
+        # "contract_date",
+        # "act_date",
         "phone",
         "address",
-        "how_contacted",
+        # "how_contacted",
         "prosthetist",
         "region",
-        #    "admin_status_display",
-        "passport",
+        # "admin_status_display",
+        "Passport",
+        "SNILS",
         "IPR",
         "SprMSE",
-        "bank_details",
+        "Bank_Details",
         "parts",
         "contour",
     )
@@ -67,9 +100,49 @@ class ClientAdmin(admin.ModelAdmin):
     search_fields = ("full_name",)
 
     def full_name(self, obj):
-        return obj.__str__()
+        return str(obj)
 
-    full_name.short_description = "ФИО Клиента"
+    full_name.short_description = "ФИО клиента"
+
+    def Passport(self, obj):
+        if obj.passport:
+            return True
+        return False
+
+    Passport.boolean = True
+    Passport.short_description = "паспорт"
+
+    def SNILS(self, obj):
+        if obj.snils:
+            return True
+        return False
+
+    SNILS.boolean = True
+    SNILS.short_description = "СНИЛС"
+
+    def IPR(self, obj):
+        if obj.ipr:
+            return True
+        return False
+
+    IPR.boolean = True
+    IPR.short_description = "ИПР"
+
+    def SprMSE(self, obj):
+        if obj.sprmse:
+            return True
+        return False
+
+    SprMSE.boolean = True
+    SprMSE.short_description = "СпрMCЭ"
+
+    def Bank_Details(self, obj):
+        if obj.bank_details:
+            return True
+        return False
+
+    Bank_Details.boolean = True
+    Bank_Details.short_description = "рекв."
 
     # def admin_status_display(self, obj):
     #     return format_html_join(
@@ -90,12 +163,28 @@ class ItemInline(admin.TabularInline):
     fk_name = "reserved"
 
 
+class StatusInline(admin.TabularInline):
+    model = Status
+    fk_name = "job"
+    extra = 0
+    formfield_overrides = {
+        models.TextField: {"widget": Textarea(attrs={"rows": 2, "cols": 60})},
+    }
+
+
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
+    form = JobAdminForm
     inlines = [
-        ItemInline,
+        #    ItemInline,
+        StatusInline,
     ]
-    list_display = ("prosthesis", "client", "prosthetist", "date", "status")
+    list_display = ("client", "prosthesis", "prosthetist", "date", "status")
+
+    def status(self, obj):
+        return str(obj.status_display)
+
+    status.short_description = "cтатус"
 
 
 @admin.register(Status)
@@ -105,9 +194,14 @@ class StatusAdmin(admin.ModelAdmin):
     def client(self, obj):
         return obj.job.client
 
-    client.short_description = "Клиент"
+    client.short_description = "клиент"
 
     def prosthetist(self, obj):
         return obj.job.prosthetist
 
-    prosthetist.short_description = "Протезист"
+    prosthetist.short_description = "протезист"
+
+
+@admin.register(ContactTypeChoice)
+class ContactTypeChoiceAdmin(admin.ModelAdmin):
+    list_display = ("prosthetist", "name")

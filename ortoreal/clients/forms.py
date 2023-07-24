@@ -2,13 +2,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from clients.models import (
-    Client,
-    Contact,
-    Comment,
-    Job,
-    get_contact_type_choices,
-)
+from clients.models import Client, Comment, Contact, Job
 
 User = get_user_model()
 
@@ -18,10 +12,10 @@ class DatePicker(forms.DateInput):
 
 
 class ClientContactForm(forms.ModelForm):
-    how_contacted = forms.ChoiceField(
-        choices=get_contact_type_choices,
-        label=Client._meta.get_field("how_contacted").verbose_name,
-    )
+    # how_contacted = forms.ChoiceField(
+    #     choices=get_contact_type_choices,
+    #     label=Client._meta.get_field("how_contacted").verbose_name,
+    # )
 
     class Meta:
         model = Client
@@ -29,7 +23,7 @@ class ClientContactForm(forms.ModelForm):
             "last_name",
             "first_name",
             "surname",
-            "how_contacted",
+            # "how_contacted",
             "prosthetist",
         )
 

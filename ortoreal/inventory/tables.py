@@ -1,16 +1,16 @@
 from django.conf import settings
 from django.db import models
-from django.db.models import Case, Count, F, Q, Sum, Value, When
+from django.db.models import Case, Count, F, Sum, Value, When
 from django.db.models.functions import Concat
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
 import django_tables2 as tables
 
-from clients.models import Client, Job
+from clients.models import Job
 from clients.tables import ItemsColumn
 from inventory.models import InventoryLog, Item, Order, Part, Vendor
-from inventory.utils import dec2pre, get_dec_display, wrap_in_color
+from inventory.utils import get_dec_display, wrap_in_color
 
 TD_END = {
     "td": {
@@ -330,13 +330,13 @@ class JobSetsTable(tables.Table):
     Таблица комплектов протезов.
     """
 
-    initials = tables.Column("Пр-т", accessor="prosthetist.initials")
     items = ItemsColumn(
         verbose_name="Комплектующие", separator="<br/>", per_line=10
     )
     client = tables.Column(
         "Клиент", linkify=lambda record: record.client.get_absolute_url()
     )
+    status = tables.Column("Статус", empty_values=())
 
     def render_status(self, record, column):
         status_colors = {
@@ -347,14 +347,17 @@ class JobSetsTable(tables.Table):
             "payment": "6D9EEB",
         }
         # задаём цвет статуса
-        if record.status in status_colors:
-            print("here")
-            color = status_colors[record.status]
+        if not record.statuses.exists():
+            return record.status_display
+        status = record.statuses.latest("date").name
+        if status in status_colors:
+            color = status_colors[status]
             column.attrs = {"td": {"style": f"background: #{color};"}}
         # вставляем перенос строки между статусом и датой статуса
+        # rsplit разделяет с конца
         return mark_safe("<br/>".join(record.status_display.rsplit(" ", 1)))
 
-    def render_prosthesis(self, record, value):
+    def render_prosthesis(self, value):
         region = "МО"
         if value.region == "Moscow":
             region = "М"
@@ -368,12 +371,12 @@ class JobSetsTable(tables.Table):
         sequence = (
             "id",
             "client",
-            "initials",
+            "prosthetist",
             "prosthesis",
             "status",
             "items",
         )
-        exclude = ("prosthetist", "date")
+        exclude = ("date",)
         row_attrs = {
             "data-href": lambda record: reverse(
                 "inventory:job_set", kwargs={"pk": record.pk}
@@ -404,6 +407,7 @@ class MarginTable(tables.Table):
     price = tables.Column("Цена", attrs=TD_END)
     price_items = tables.Column("Комплектующие", attrs=TD_END)
     margin = tables.Column("Маржа", attrs=TD_END)
+    status = tables.Column("Статус", attrs=TD_END, accessor="status_display")
 
     def render_price(self, value):
         return get_dec_display(value)

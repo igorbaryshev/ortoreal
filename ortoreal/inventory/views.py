@@ -1,14 +1,10 @@
 import io
 import urllib
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from django import forms
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.core.paginator import Paginator
-from django.db import transaction
 from django.db.models import (
     Case,
     Count,
@@ -22,12 +18,10 @@ from django.db.models import (
     Window,
 )
 from django.db.models.functions import Concat, RowNumber
-from django.db.models.query import QuerySet
 from django.http.response import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
-from django.views.generic.list import ListView
 
 import django_tables2 as tables
 from django_filters.views import FilterView
@@ -35,10 +29,9 @@ from django_tables2.export.views import ExportMixin
 from django_tables2.paginators import LazyPaginator
 from xlsxwriter.workbook import Workbook
 
-from clients.models import Client, Job
+from clients.models import Job
 from inventory.filters import MarginFilter, PartFilter
 from inventory.forms import (
-    CommentForm,
     FreeOrderFormSet,
     InventoryAddForm,
     InventoryTakeForm,
@@ -50,16 +43,8 @@ from inventory.forms import (
     ProsthesisSelectForm,
     ReceptionItemFormSet,
 )
-from inventory.models import (
-    InventoryLog,
-    Item,
-    Order,
-    Part,
-    Prosthesis,
-    Vendor,
-)
+from inventory.models import InventoryLog, Item, Order, Part
 from inventory.tables import (
-    InventoryLogItemsTable,
     InventoryLogsTable,
     JobSetsTable,
     MarginTable,
@@ -68,7 +53,6 @@ from inventory.tables import (
     OrderTable,
     PartItemsTable,
     VendorExportTable,
-    VendorOrderTable,
 )
 from inventory.utils import (
     OrderedCounter,
@@ -165,6 +149,7 @@ class ReceptionView(LoginRequiredMixin, View):
             ordered_items = Item.objects.filter(
                 arrived=False, order__current=False
             ).order_by(F("reserved__date").asc(nulls_last=True), F("id").asc())
+            batch_update_items = []
             for fs_form in formset:
                 print(fs_form.cleaned_data["quantity"])
                 quantity = fs_form.cleaned_data["quantity"]
@@ -183,7 +168,6 @@ class ReceptionView(LoginRequiredMixin, View):
                 matching_ordered = ordered_items.filter(part=part)
                 # Проверяем, есть ли пришедшие в заказанных,
                 # добавляем склад и заменяем дату на дату прихода
-                batch_update_items = []
                 if matching_ordered.exists():
                     match_quantity = len(matching_ordered)
                     if quantity > match_quantity:
@@ -316,7 +300,8 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                         if item.reserved != job:
                             # берём словарь модели комплектующей, увеличиваем
                             # кол-во требуемое в резерв работе, у которой взяли
-                            parts_to_reserve[item.part][item.reserved] += 1
+                            if item.reserved is not None:
+                                parts_to_reserve[item.part][item.reserved] += 1
                             item.reserved = job
                         item.job = job
 
@@ -473,7 +458,7 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
 
     def test_func(self) -> bool:
-        return self.request.user.is_prosthetist
+        return self.request.user.is_prosthetist or self.request.user.is_manager
 
     def get(self, request, *args, **kwargs):
         client_form = JobSelectForm(user=request.user)
@@ -782,7 +767,9 @@ class OrderView(
     def get_order(self):
         if self.is_current:
             return get_object_or_404(Order, current=True)
-        return get_object_or_404(Order, pk=self.kwargs.get("pk"))
+        pk = self.kwargs.get("pk")
+        print(pk)
+        return get_object_or_404(Order, pk=pk)
 
     def get(self, request, pk=None):
         check_minimum_remainder()
@@ -820,10 +807,11 @@ class OrderView(
         context = super().get_context_data(**kwargs)
         context["current"] = self.is_current
         order = self.get_order()
-        context["title"] = "Заказ от"
         if order.current:
             context["title"] = "Текущий заказ c"
-        context["date"] = order.date
+        else:
+            context["title"] = "Заказ от"
+        context["order"] = order
         return context
 
 
@@ -850,13 +838,16 @@ class OrdersView(
         return Order.objects.order_by("-id")
 
 
-def export_orders(request):
+def export_orders(request, pk=None):
     """
     Экспорт заказов по поставщикам в .zip архиве.
     """
-    queryset = Order.objects.get(current=True)
+    if pk is not None:
+        order = get_object_or_404(Order, pk=pk)
+    else:
+        order = get_object_or_404(Order, current=True)
     vendors = (
-        queryset.items.annotate(
+        order.items.annotate(
             vendor_id=F("part__vendor__id"),
             name=Case(
                 When(part__vendor__isnull=True, then=Value("-")),
@@ -866,8 +857,8 @@ def export_orders(request):
         .values("vendor_id", "name")
         .distinct()
     )
-    table_queryset = (
-        queryset.items.values("part")
+    order_table = (
+        order.items.values("part")
         .annotate(
             row=Window(RowNumber()),
             vendor_code=F("part__vendor_code"),
@@ -879,7 +870,7 @@ def export_orders(request):
     )
     files = []
     for vendor in vendors:
-        vendor_queryset = table_queryset.filter(
+        vendor_queryset = order_table.filter(
             part__vendor_id=vendor["vendor_id"]
         )
         table = VendorExportTable(vendor_queryset)

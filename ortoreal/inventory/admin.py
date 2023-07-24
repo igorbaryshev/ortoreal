@@ -114,4 +114,4 @@ class ManufacturerAdmin(admin.ModelAdmin):
 
 @admin.register(Prosthesis)
 class ProsthesisAdmin(admin.ModelAdmin):
-    list_display = ("number", "kind", "name", "price", "region")
+    list_display = ("number", "kind", "price", "region")

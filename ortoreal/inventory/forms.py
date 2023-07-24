@@ -186,7 +186,7 @@ class JobSelectForm(forms.Form):
     """
 
     job = forms.ModelChoiceField(
-        queryset=Job.objects.none(),
+        queryset=Job.objects.order_by("-client"),
         label="Клиент",
         widget=forms.Select(
             attrs={
@@ -197,9 +197,10 @@ class JobSelectForm(forms.Form):
 
     def __init__(self, user, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.fields["job"].queryset = Job.objects.filter(
-            prosthetist=user
-        ).order_by("-client")
+        if not user.is_manager:
+            self.fields["job"].queryset = self.fields["job"].queryset.filter(
+                prosthetist=user
+            )  # .order_by("-client")
 
         self.fields["job"].empty_label = "---выбрать---"
 
@@ -219,7 +220,7 @@ class ProsthesisSelectForm(forms.ModelForm):
             region = job.client.region
             self.fields["prosthesis"].queryset = Prosthesis.objects.filter(
                 region=region
-            ).order_by("name")
+            ).order_by("number")
             self.fields["prosthesis"].empty_label = "---выбрать---"
             self.fields["prosthesis"].initial = job.prosthesis
 
@@ -282,9 +283,29 @@ class FreeOrderForm(ItemForm):
     Форма свободного заказа.
     """
 
+    minimum_remainder = forms.ChoiceField(
+        label="Неснижаемый остаток",
+        choices=(),
+        required=False,
+        initial="-",
+        widget=forms.Select(
+            attrs={
+                "disabled": "true",
+                "class": "text-center",
+            }
+        ),
+    )
+
+    def __init__(self, *args, queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        queryset = self.fields["part"].queryset
+        self.fields["minimum_remainder"].choices = [(0, "-")] + list(
+            queryset.values_list("id", "minimum_remainder")
+        )
+
     class Meta:
         model = Item
-        fields = ("part", "quantity")
+        fields = ("part", "quantity", "minimum_remainder")
 
 
 FreeOrderFormSet = forms.formset_factory(FreeOrderForm, extra=1)

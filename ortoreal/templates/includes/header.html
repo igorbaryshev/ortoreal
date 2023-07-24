@@ -28,6 +28,11 @@
       {% with view_name=request.resolver_match.view_name %}
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="nav nav-pills ms-auto">
+            {% if user.is_staff or user.is_manager %}
+              <li class="nav-item">
+                <a class="btn btn-outline-info me-1" href="{% url 'admin:index' %}">Админка</a>
+              </li>
+            {% endif %}
             <li class="nav-item">
               <a class="nav-link{% if view_name == 'inventory:nomenclature' %} active{% endif %}"
                  href="{% url 'inventory:nomenclature' %}">Номенклатура</a>

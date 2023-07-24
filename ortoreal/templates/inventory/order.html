@@ -1,32 +1,33 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}
-  {{ title }} {{ date|date:"d.m.Y" }}
+  {{ title }} {{ order.date|date:"d.m.Y" }}
 {% endblock title %}
 {% block static %}
-  <link rel="stylesheet" href="{% static "css/table.css" %}"/>
+  <link rel="stylesheet" href="{% static "css/table.css" %}" />
 {% endblock static %}
 {% block content %}
   {% load django_tables2 %}
   <div class="card-body">
-    <h2>{{ title }} {{ date|date:"d.m.Y" }}</h2>
+    <h2>{{ title }} {{ order.date|date:"d.m.Y" }}</h2>
     {% render_table table %}
     {% if current %}
       <form method="post" class="d-flex justify-content-around">
         {% csrf_token %}
-        <input class="btn btn-danger" type="submit" value="Закрыть заказ"/>
+        <input class="btn btn-danger" type="submit" value="Закрыть заказ" />
         <a class="btn btn-warning" href="{% url 'inventory:free_order' %}">Добавить в своб. заказ</a>
         <a class="btn btn-info" href="{% url 'inventory:free_order_edit' %}">Изменить своб. заказ</a>
-      {% else %}
-        <div class="d-flex justify-content-around">
-        {% endif %}
         <a class="btn btn-primary float-right"
-           href="{% url 'inventory:export_order' %}">Как .zip по поставщикам</a>
+           href="{% url 'inventory:export_current' %}">Как .zip по поставщикам</a>
         <a class="btn btn-primary float-right"
            href="{% url 'inventory:order' %}?_export=xlsx">Как .xlsx</a>
-        {% if current %}
-        </form>
-      {% else %}
+      </form>
+    {% else %}
+      <div class="d-flex justify-content-around">
+        <a class="btn btn-primary float-right"
+           href="{% url 'inventory:export_orders' pk=order.id %}">Как .zip по поставщикам</a>
+        <a class="btn btn-primary float-right"
+           href="{% url 'inventory:order_by_id' order.id %}?_export=xlsx">Как .xlsx</a>
       </div>
     {% endif %}
   </div>

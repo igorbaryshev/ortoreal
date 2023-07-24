@@ -9,23 +9,19 @@ class User(AbstractUser):
     surname = models.CharField(_("отчество"), max_length=150, blank=True)
 
     is_prosthetist = models.BooleanField(
-        "Протезист",
+        "протезист",
         default=False,
-        help_text="Отметьте, если пользователь является протезистом.",
+        help_text="отметьте, если пользователь является протезистом.",
     )
     is_manager = models.BooleanField(
-        "Менеджер",
+        "менеджер",
         default=False,
-        help_text="Отметьте, если пользователь является менеджером.",
+        help_text="отметьте, если пользователь является менеджером.",
     )
 
-    @property
-    def initials(self):
-        return f"{self.last_name[0]}{self.first_name[0]}"
-
     class Meta:
-        verbose_name = "Работник"
-        verbose_name_plural = "Работники"
+        verbose_name = "работник"
+        verbose_name_plural = "работники"
 
     def __str__(self) -> str:
         full_name = self.get_full_name()

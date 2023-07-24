@@ -1,5 +1,8 @@
+import uuid
+from typing import Iterable, Optional
+
 from django.contrib.auth import get_user_model
-from django.db import models
+from django.db import IntegrityError, models
 from django.db.models import CharField, Value
 from django.db.models.functions import Cast, Concat, Substr
 from django.urls import reverse
@@ -14,36 +17,54 @@ User = get_user_model()
 
 
 class StatusChoices(models.TextChoices):
-    IN_WORK = "in work", _("Принят в работу")
-    ISSUED = "issued", _("Выдан")
-    DOCS_SUBMITTED = "docs submitted", _("Документы сданы")
-    PAYMENT_TO_CLIENT = "payment to client", _("Оплата клиенту")
-    PAYMENT = "payment", _("Оплата")
+    IN_WORK = "in work", _("принят в работу")
+    ISSUED = "issued", _("выдан")
+    DOCS_SUBMITTED = "docs submitted", _("документы сданы")
+    PAYMENT_TO_CLIENT = "payment to client", _("оплата клиенту")
+    PAYMENT = "payment", _("оплата")
 
 
-class ContactType(models.TextChoices):
-    THEY_CALLED = "they_called", _("Звонок")
-    WE_CALLED = "we_called", _("Обзвон")
+# class ContactType(models.TextChoices):
+#     THEY_CALLED = "they_called", _("звонок")
+#     WE_CALLED = "we_called", _("обзвон")
 
 
-def get_contact_type_choices():
-    prosthetists = (
-        User.objects.filter(is_prosthetist=True)
-        .annotate(
-            id_as_str=Cast("id", output_field=CharField()),
-            initials=Concat(
-                Substr("last_name", 1, 1), Substr("first_name", 1, 1)
-            ),
-        )
-        .values_list("id_as_str", "initials")
+class ContactTypeChoice(models.Model):
+    name = models.CharField("название опции", max_length=128, blank=True)
+    prosthetist = models.ForeignKey(
+        User,
+        verbose_name="протезист",
+        limit_choices_to={"is_prosthetist": True},
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
     )
-    return ContactType.choices + list(prosthetists)
+
+    class Meta:
+        verbose_name = "откуда обратились"
+        verbose_name_plural = "откуда обратились"
+
+    def __str__(self) -> str:
+        return str(self.prosthetist or self.name)
 
 
 class Client(models.Model):
     class Region(models.TextChoices):
         MOSCOW = "Moscow", _("Москва")
         MOSCOW_REGION = "Moscow region", _("Московская область")
+
+    def client_directory_path(self, filename):
+        """
+        Название директория для файлов клиента.
+        """
+        filename = (
+            str(self.id)
+            + "_"
+            + str(uuid.uuid4())[:8]
+            + "."
+            + filename.rsplit(".", 1)[-1]
+        )
+        return f"clients/{self.id}/{filename}"
 
     last_name = models.CharField(
         _("last name"), max_length=150, blank=False, default=None
@@ -52,43 +73,55 @@ class Client(models.Model):
         _("first name"), max_length=150, blank=False, default=None
     )
     surname = models.CharField(_("отчество"), max_length=150, blank=True)
-    contract_date = models.DateField(_("Дата договора"), default=timezone.now)
-    act_date = models.DateField(_("Дата акта(чека)"), default=timezone.now)
+    # contract_date = models.DateField(_("дата договора"), default=timezone.now)
+    # act_date = models.DateField(_("дата акта(чека)"), default=timezone.now)
     phone = PhoneNumberField(
-        _("Телефон"), null=False, blank=False, unique=True
+        _("телефон"), null=False, blank=False, unique=True
     )
-    address = models.TextField(_("Адрес"), max_length=1000, blank=True)
-    how_contacted = models.CharField(_("Откуда обратились"), max_length=150)
+    address = models.TextField(_("адрес"), max_length=1000, blank=True)
     prosthetist = models.ForeignKey(
         User,
-        verbose_name="Протезист",
+        verbose_name="протезист",
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
         limit_choices_to={"is_prosthetist": True},
     )
     region = models.CharField(
-        "Регион",
+        "регион",
         max_length=128,
         choices=Region.choices,
-        blank=True,
-        default=None,
     )
 
-    passport = models.BooleanField(_("Паспорт"), default=False)
-    SNILS = models.BooleanField(_("СНИЛС"), default=False)
-    IPR = models.BooleanField(_("ИПР"), default=False)
-    SprMSE = models.BooleanField(_("СпрМСЭ"), default=False)
-    bank_details = models.BooleanField(
-        _("Рекв."), default=False, help_text="Реквизиты"
+    # passport = models.BooleanField(_("Паспорт"), default=False)
+    passport = models.FileField(
+        "паспорт", upload_to=client_directory_path, blank=True, null=True
+    )
+    # SNILS = models.BooleanField(_("СНИЛС"), default=False)
+    snils = models.FileField(
+        "СНИЛС", upload_to=client_directory_path, blank=True, null=True
+    )
+    # IPR = models.BooleanField(_("ИПР"), default=False)
+    ipr = models.FileField(
+        "ИПР", upload_to=client_directory_path, blank=True, null=True
+    )
+    # SprMSE = models.BooleanField(_("СпрМСЭ"), default=False)
+    sprmse = models.FileField(
+        "CпрМСЭ", upload_to=client_directory_path, blank=True, null=True
+    )
+    # bank_details = models.BooleanField(
+    #    _("рекв."), default=False, help_text="реквизиты"
+    # )
+    bank_details = models.FileField(
+        "реквизиты", upload_to=client_directory_path, blank=True, null=True
     )
     parts = models.BooleanField(
-        _("Компл."),
+        "комплектующие",
         default=False,
-        help_text="Протезист дал комплектующие",
+        help_text="протезист дал комплектующие",
     )
     contour = models.BooleanField(
-        _("Контур"), default=False, help_text="Выпуск в контуре"
+        "контур", default=False, help_text="выпуск в контуре"
     )
 
     def get_phone_display(self):
@@ -101,8 +134,8 @@ class Client(models.Model):
         return full_name
 
     class Meta:
-        verbose_name = "Клиент"
-        verbose_name_plural = "Клиенты"
+        verbose_name = "клиент"
+        verbose_name_plural = "клиенты"
 
     def __str__(self) -> str:
         return self.get_full_name()
@@ -118,37 +151,37 @@ class Client(models.Model):
 
 class Contact(models.Model):
     class YesNo(models.TextChoices):
-        YES = "yes", _("Да")
-        NO = "no", _("Нет")
+        YES = "yes", _("да")
+        NO = "no", _("нет")
 
     client = models.ForeignKey(
-        Client, verbose_name="Клиент", on_delete=models.CASCADE
+        Client, verbose_name="клиент", on_delete=models.CASCADE
     )
-    call_date = models.DateField(_("Дата звонка"), default=timezone.now)
+    call_date = models.DateField(_("дата звонка"), default=timezone.now)
     last_prosthesis_date = models.CharField(
-        "Пред. протез",
+        "предыдущий протез",
         max_length=150,
-        default="первичн",
+        default="первичн.",
         blank=True,
-        help_text="Примерная дата получения последнего протеза",
+        help_text="примерная дата получения последнего протеза",
     )
-    prosthesis_type = models.CharField("Протез", max_length=150, blank=True)
+    prosthesis_type = models.CharField("протез", max_length=150, blank=True)
     call_result = models.CharField(
-        _("Результат звонка"), max_length=1024, blank=True
+        _("результат звонка"), max_length=1024, blank=True
     )
     comment = models.CharField(
-        _("Комментарий"),
+        _("комментарий"),
         max_length=1024,
         blank=True,
-        help_text="Комментарий протезиста",
+        help_text="комментарий протезиста",
     )
     MTZ_date = models.DateField(_("МТЗ"), blank=True, null=True)
     result = models.CharField(
-        _("Результат"),
+        _("результат"),
         max_length=16,
         blank=True,
         choices=YesNo.choices,
-        help_text="Согласились или нет",
+        help_text="согласились или нет",
     )
 
     @classmethod
@@ -162,20 +195,28 @@ class Contact(models.Model):
     def __str__(self) -> str:
         return f"{self.client}"
 
+    def save(self, *args, **kwargs):
+        """
+        Создаём работу, если клиент согласился в обращении.
+        """
+        super().save(*args, **kwargs)
+        if self.result == Contact.YesNo.YES:
+            Job.objects.get_or_create(client=self.client)
+
 
 class Comment(models.Model):
-    text = models.TextField("Комментарий(примечание)")
-    client = models.ForeignKey(
-        Client,
-        verbose_name="Клиент",
+    contact = models.ForeignKey(
+        Contact,
+        verbose_name="контакт",
         on_delete=models.CASCADE,
         related_name="comments",
     )
-    date = models.DateField(auto_now_add=True)
+    text = models.TextField("комментарий(примечание)")
+    date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "Комментарий"
-        verbose_name_plural = "Комментарии"
+        verbose_name = "комментарий"
+        verbose_name_plural = "комментарии"
 
     def __str__(self) -> str:
         return f"{self.date} {self.text[:20]}"
@@ -183,75 +224,92 @@ class Comment(models.Model):
 
 class Status(models.Model):
     name = models.CharField(
-        "Статус", max_length=150, choices=StatusChoices.choices, blank=False
+        "статус",
+        max_length=150,
+        choices=StatusChoices.choices,
+        blank=False,
+        null=False,
+        default=StatusChoices.IN_WORK,
     )
     job = models.ForeignKey(
         "Job",
-        verbose_name="Работа",
+        verbose_name="работа",
         on_delete=models.CASCADE,
         related_name="statuses",
     )
-    date = models.DateTimeField("Дата", auto_now_add=True)
+    date = models.DateTimeField("дата", default=timezone.now)
+    comment = models.TextField("комментарий", blank=True)
 
     def __str__(self) -> str:
-        return f"{self.name}({self.date})"
+        date = date_format(
+            self.date, format="SHORT_DATE_FORMAT", use_l10n=True
+        )
+        return f"{self.get_name_display()} {date}"
 
     class Meta:
-        verbose_name = "Статус"
-        verbose_name_plural = "Статусы"
+        verbose_name = "статус"
+        verbose_name_plural = "статусы"
 
 
 class Job(models.Model):
-    prosthesis = models.ForeignKey(
-        "inventory.Prosthesis",
-        verbose_name="Протез",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-    )
     client = models.ForeignKey(
         Client,
-        verbose_name="Клиент",
+        verbose_name="клиент",
         on_delete=models.CASCADE,
         related_name="jobs",
     )
+    how_contacted = models.ForeignKey(
+        ContactTypeChoice,
+        verbose_name="откуда обратились",
+        on_delete=models.SET_NULL,
+        null=True,
+    )
     prosthetist = models.ForeignKey(
         User,
-        verbose_name="Протезист",
+        verbose_name="протезист",
         on_delete=models.SET_NULL,
         null=True,
         related_name="jobs",
         limit_choices_to={"is_prosthetist": True},
     )
-    date = models.DateTimeField("Дата", default=timezone.now)
-    status = models.CharField(
-        _("Статус"), max_length=150, choices=StatusChoices.choices, blank=True
+    prosthesis = models.ForeignKey(
+        "inventory.Prosthesis",
+        verbose_name="протез",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
     )
+    date = models.DateTimeField(_("date"), default=timezone.now)
+    # status = models.CharField(
+    # _("статус"), max_length=150, choices=StatusChoices.choices, blank=True
+    # )
 
     @property
     def status_display(self):
-        statuses = self.statuses.order_by("-date")
-        if statuses:
-            date = date_format(
-                statuses[0].date, format="SHORT_DATE_FORMAT", use_l10n=True
-            )
-            return f"{self.get_status_display()} {date}"
-        return ("--нет статуса--",)
+        if self.statuses.exists():
+            return str(self.statuses.latest("date"))
+            # date = date_format(
+            # status.date, format="SHORT_DATE_FORMAT", use_l10n=True
+            # )
+            # return f"{status.name} {date}"
+        return "—нет статуса—"
 
-    status_display.fget.short_description = "Статус"
+    status_display.fget.short_description = "статус"
 
     class Meta:
-        verbose_name = "Работа"
-        verbose_name_plural = "Работы"
+        verbose_name = "работа"
+        verbose_name_plural = "работы"
 
     def __str__(self) -> str:
         return f"{self.client} ({self.status_display})"
 
     def save(self, *args, **kwargs):
+        """
+        Проверяем, что регион клиента и протеза одинаковые.
+        """
+        if self.prosthesis and self.client.region != self.prosthesis.region:
+            raise IntegrityError("регион клиента и протеза должны быть равны")
         super().save(*args, **kwargs)
-        if not self.statuses.filter(name=self.status).exists():
-            new_status = Status(name=self.status, job=self)
-            new_status.save()
 
     def get_absolute_url(self):
         return reverse("clients:job", kwargs={"pk": self.pk})
