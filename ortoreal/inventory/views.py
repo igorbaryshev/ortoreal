@@ -54,9 +54,8 @@ from inventory.tables import (
     PartItemsTable,
     VendorExportTable,
 )
-from inventory.utils import (
+from inventory.utils import (  # TODO; check_minimum_remainder,
     OrderedCounter,
-    check_minimum_remainder,
     create_reserve,
     generate_zip,
     move_reserves_to_free_order,
@@ -320,7 +319,8 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                                 part, job, quantity, job_dict=job_dict
                             )
                     # проверяем неснижаемый остаток
-                    check_minimum_remainder()
+                    # TODO
+                    # check_minimum_remainder()
 
                     return redirect("inventory:nomenclature")
             # если клиент в форме изменился, меняем queryset в формсете
@@ -522,7 +522,8 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
                 prosthesis = prosthesis_form.cleaned_data["prosthesis"]
                 job.prosthesis = prosthesis
                 job.save()
-                check_minimum_remainder()
+                # TODO
+                # check_minimum_remainder()
 
                 return redirect("inventory:job_sets")
 
@@ -660,7 +661,8 @@ class FreeOrderEditView(LoginRequiredMixin, UserPassesTestMixin, View):
                 Item.objects.bulk_create(batch_create)
                 move_reserves_to_free_order()
 
-            check_minimum_remainder()
+            # TODO
+            # check_minimum_remainder()
             return redirect("inventory:order")
 
         context = {"formset": formset, "editing": True}
@@ -771,9 +773,10 @@ class OrderView(
         print(pk)
         return get_object_or_404(Order, pk=pk)
 
-    def get(self, request, pk=None):
-        check_minimum_remainder()
-        return super().get(request)
+    # TODO
+    # def get(self, request, pk=None):
+    #    check_minimum_remainder()
+    #    return super().get(request)
 
     def post(self, request):
         if self.is_current:

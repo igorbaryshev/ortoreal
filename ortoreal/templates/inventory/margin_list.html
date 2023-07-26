@@ -8,8 +8,10 @@
   Маржа
 {% endblock title %}
 {% block static %}
-  <link rel="stylesheet" href="{% static "css/table.css" %}"/>
+  <link rel="stylesheet" href="{% static "css/table.css" %}" />
+  {% comment %}
   <script src="{% static 'js/table_row_link.js' %}"></script>
+  {% endcomment %}
 {% endblock static %}
 {% block content %}
   {{ filter.form.media }}
@@ -24,7 +26,7 @@
         </div>
         {% bootstrap_button button_type="submit" content="Фильтровать" %}
       </form>
-      <br/>
+      <br />
     {% endif %}
     {% load django_tables2 %}
     {% render_table table %}

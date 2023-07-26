@@ -292,6 +292,7 @@ class FreeOrderForm(ItemForm):
             attrs={
                 "disabled": "true",
                 "class": "text-center",
+                "style": "-webkit-appearance: none;",
             }
         ),
     )
