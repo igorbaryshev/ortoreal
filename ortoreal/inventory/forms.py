@@ -1,10 +1,9 @@
 from decimal import Decimal
 
 from django import forms
-from django.db.models import Count, Q
 from django.utils import timezone
 
-from clients.models import Client, Job
+from clients.models import Job
 from inventory.models import InventoryLog, Item, Part, Prosthesis
 
 

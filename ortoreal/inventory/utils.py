@@ -6,8 +6,8 @@ from decimal import Decimal
 from functools import wraps
 
 from django.contrib.auth import get_user_model
-from django.db.models import Case, Count, F, Q, Value, When
-from django.shortcuts import get_list_or_404, get_object_or_404, redirect
+from django.db.models import Case, Count, F, Value, When
+from django.shortcuts import get_list_or_404, redirect
 from django.utils import timezone
 
 from inventory.models import Item, Order, Part
