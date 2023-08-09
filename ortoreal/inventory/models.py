@@ -14,6 +14,9 @@ User = get_user_model()
 class Order(models.Model):
     current = models.BooleanField("текущий", default=True)
     date = models.DateTimeField("дата", default=timezone.now)
+    invoice_number = models.CharField(
+        "номер счёта", max_length=100, blank=True, null=True
+    )
 
     class Meta:
         verbose_name = "заказ"

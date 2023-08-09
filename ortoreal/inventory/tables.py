@@ -330,7 +330,7 @@ class JobSetsTable(tables.Table):
     Таблица комплектов протезов.
     """
 
-    items = ItemsColumn(
+    reserved_items = ItemsColumn(
         verbose_name="Комплектующие", separator="<br/>", per_line=10
     )
     client = tables.Column(
@@ -374,9 +374,9 @@ class JobSetsTable(tables.Table):
             "prosthetist",
             "prosthesis",
             "status",
-            "items",
+            "reserved_items",
         )
-        exclude = ("date",)
+        exclude = ("date", "items")
         row_attrs = {
             "data-href": lambda record: reverse(
                 "inventory:job_set", kwargs={"pk": record.pk}

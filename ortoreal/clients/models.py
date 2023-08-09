@@ -1,4 +1,5 @@
 import uuid
+from tabnanny import verbose
 from typing import Iterable, Optional
 
 from django.contrib.auth import get_user_model
@@ -73,6 +74,7 @@ class Client(models.Model):
         _("first name"), max_length=150, blank=False, default=None
     )
     surname = models.CharField(_("отчество"), max_length=150, blank=True)
+    birth_date = models.DateField(_("дата рождения"), blank=True, null=True)
     # contract_date = models.DateField(_("дата договора"), default=timezone.now)
     # act_date = models.DateField(_("дата акта(чека)"), default=timezone.now)
     phone = PhoneNumberField(
@@ -93,35 +95,14 @@ class Client(models.Model):
         choices=Region.choices,
     )
 
-    # passport = models.BooleanField(_("Паспорт"), default=False)
-    passport = models.FileField(
-        "паспорт", upload_to=client_directory_path, blank=True, null=True
-    )
-    # SNILS = models.BooleanField(_("СНИЛС"), default=False)
-    snils = models.FileField(
-        "СНИЛС", upload_to=client_directory_path, blank=True, null=True
-    )
-    # IPR = models.BooleanField(_("ИПР"), default=False)
+    snils = models.CharField("СНИЛС", blank=True, null=True)
+
     ipr = models.FileField(
         "ИПР", upload_to=client_directory_path, blank=True, null=True
     )
-    # SprMSE = models.BooleanField(_("СпрМСЭ"), default=False)
+
     sprmse = models.FileField(
         "CпрМСЭ", upload_to=client_directory_path, blank=True, null=True
-    )
-    # bank_details = models.BooleanField(
-    #    _("рекв."), default=False, help_text="реквизиты"
-    # )
-    bank_details = models.FileField(
-        "реквизиты", upload_to=client_directory_path, blank=True, null=True
-    )
-    parts = models.BooleanField(
-        "комплектующие",
-        default=False,
-        help_text="протезист дал комплектующие",
-    )
-    contour = models.BooleanField(
-        "контур", default=False, help_text="выпуск в контуре"
     )
 
     def get_phone_display(self):
@@ -149,13 +130,65 @@ class Client(models.Model):
         return reverse("clients:client", kwargs={"pk": self.pk})
 
 
+class Passport(models.Model):
+    def passport_directory_path(self, filename):
+        """
+        Название директория для файлов клиента.
+        """
+        filename = (
+            str(self.id)
+            + "_"
+            + str(uuid.uuid4())[:8]
+            + "."
+            + filename.rsplit(".", 1)[-1]
+        )
+        return f"passport/{self.id}/{filename}"
+
+    client = models.ForeignKey(
+        Client,
+        verbose_name="клиент",
+        on_delete=models.CASCADE,
+        related_name="passport",
+    )
+    series = models.CharField("серия", max_length=4)
+    number = models.CharField("номер", max_length=6)
+    date_of_issue = models.DateField("дата выдачи")
+    who_issued = models.CharField("кем выдан", max_length=1024)
+    division_code = models.CharField("код подразделения", max_length=7)
+    scan = models.FileField(
+        "скан", upload_to=passport_directory_path, blank=True, null=True
+    )
+
+    class Meta:
+        verbose_name = "паспортные данные"
+
+
+class BankDetails(models.Model):
+    client = models.ForeignKey(
+        Client,
+        verbose_name="клиент",
+        on_delete=models.CASCADE,
+        related_name="bank_details",
+    )
+    account_number = models.CharField("№ Счёта (р/с)", max_length=20)
+    bank = models.CharField("в банке (название)", max_length=1024)
+    BIC = models.CharField("БИК", max_length=8)
+    correspondent_account = models.CharField("к/с", max_length=20)
+
+    class Meta:
+        verbose_name = "реквизиты"
+
+
 class Contact(models.Model):
     class YesNo(models.TextChoices):
         YES = "yes", _("да")
         NO = "no", _("нет")
 
     client = models.ForeignKey(
-        Client, verbose_name="клиент", on_delete=models.CASCADE
+        Client,
+        verbose_name="клиент",
+        on_delete=models.CASCADE,
+        related_name="contacts",
     )
     call_date = models.DateField(_("дата звонка"), default=timezone.now)
     last_prosthesis_date = models.CharField(
@@ -169,12 +202,13 @@ class Contact(models.Model):
     call_result = models.CharField(
         _("результат звонка"), max_length=1024, blank=True
     )
-    comment = models.CharField(
-        _("комментарий"),
-        max_length=1024,
-        blank=True,
-        help_text="комментарий протезиста",
-    )
+    # comment = models.CharField(
+    #     _("комментарий"),
+    #     max_length=1024,
+    #     blank=True,
+    #     help_text="комментарий протезиста",
+    # )
+
     MTZ_date = models.DateField(_("МТЗ"), blank=True, null=True)
     result = models.CharField(
         _("результат"),
@@ -189,8 +223,8 @@ class Contact(models.Model):
         return [f.verbose_name for f in cls._meta.fields]
 
     class Meta:
-        verbose_name = "Обращение"
-        verbose_name_plural = "Обращения"
+        verbose_name = "обращение"
+        verbose_name_plural = "обращения"
 
     def __str__(self) -> str:
         return f"{self.client}"
@@ -219,7 +253,7 @@ class Comment(models.Model):
         verbose_name_plural = "комментарии"
 
     def __str__(self) -> str:
-        return f"{self.date} {self.text[:20]}"
+        return f"{self.date.date()} {self.text[:20]}"
 
 
 class Status(models.Model):

@@ -148,6 +148,7 @@ class ItemsColumn(tables.ManyToManyColumn):
     def render(self, value):
         items = []
         filtered_items = self.filter(value)
+        print(filtered_items)  # REMOVE
         for i, item in enumerate(filtered_items):
             content = self.transform(item)
             if hasattr(self, "linkify_item"):
@@ -163,7 +164,7 @@ class ItemsColumn(tables.ManyToManyColumn):
 
 
 class ClientProsthesisListTable(tables.Table):
-    items = ItemsColumn(
+    reserved_items = ItemsColumn(
         verbose_name="Комплектующие", separator="<br/>", per_line=6
     )
     price = tables.Column("Цена", accessor="prosthesis.price")
@@ -181,6 +182,6 @@ class ClientProsthesisListTable(tables.Table):
             "price",
             "region",
             "date",
-            "items",
+            "reserved_items",
         )
         exclude = ("id", "client")

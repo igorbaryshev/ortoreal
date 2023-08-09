@@ -7,11 +7,13 @@ from django.utils.html import format_html_join
 from django.utils.safestring import mark_safe
 
 from clients.models import (
+    BankDetails,
     Client,
     Comment,
     Contact,
     ContactTypeChoice,
     Job,
+    Passport,
     Status,
 )
 from inventory.models import Item
@@ -58,19 +60,60 @@ class ContactAdmin(admin.ModelAdmin):
         "call_date",
         "last_prosthesis_date",
         "call_result",
-        "comment",
+        "comments",
         "MTZ_date",
         "result",
     )
+    ordering = ("result", "-call_date")
 
     def full_name(self, obj):
         return obj.__str__()
 
     full_name.short_description = "ФИО клиента"
 
+    def comments(self, obj):
+        if obj.comments.exists():
+            comment = obj.comments.latest("date")
+            return mark_safe(f"{comment.date.date()}<br>{comment.text[:20]}")
+
+    comments.short_description = "комментарии"
+
     formfield_overrides = {
         models.TextField: {"widget": Textarea(attrs={"rows": 2, "cols": 60})},
     }
+
+
+class ContactInline(admin.StackedInline):
+    model = Contact
+    fk_name = "client"
+    ordering = ("-call_date",)
+    extra = 0
+    formfield_overrides = {
+        models.TextField: {"widget": Textarea(attrs={"rows": 2, "cols": 60})},
+    }
+
+
+class JobInline(admin.StackedInline):
+    model = Job
+    fk_name = "client"
+    extra = 0
+    formfield_overrides = {
+        models.TextField: {"widget": Textarea(attrs={"rows": 2, "cols": 60})},
+    }
+
+
+class PassportInline(admin.StackedInline):
+    model = Passport
+    fk_name = "client"
+    extra = 1
+    max_num = 1
+
+
+class BankDetailsInline(admin.StackedInline):
+    model = BankDetails
+    fk_name = "client"
+    extra = 1
+    max_num = 1
 
 
 @admin.register(Client)
@@ -92,9 +135,15 @@ class ClientAdmin(admin.ModelAdmin):
         "IPR",
         "SprMSE",
         "Bank_Details",
-        "parts",
-        "contour",
+        # "parts",
+        # "contour",
     )
+    inlines = [
+        PassportInline,
+        BankDetailsInline,
+        ContactInline,
+        JobInline,
+    ]
     list_display_links = ("full_name",)
 
     search_fields = ("full_name",)
@@ -105,7 +154,7 @@ class ClientAdmin(admin.ModelAdmin):
     full_name.short_description = "ФИО клиента"
 
     def Passport(self, obj):
-        if obj.passport:
+        if obj.passport.exists():
             return True
         return False
 
@@ -137,7 +186,7 @@ class ClientAdmin(admin.ModelAdmin):
     SprMSE.short_description = "СпрMCЭ"
 
     def Bank_Details(self, obj):
-        if obj.bank_details:
+        if obj.bank_details.exists():
             return True
         return False
 
@@ -200,8 +249,3 @@ class StatusAdmin(admin.ModelAdmin):
         return obj.job.prosthetist
 
     prosthetist.short_description = "протезист"
-
-
-@admin.register(ContactTypeChoice)
-class ContactTypeChoiceAdmin(admin.ModelAdmin):
-    list_display = ("prosthetist", "name")

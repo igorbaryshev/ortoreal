@@ -41,7 +41,7 @@ def get_dec_display(value):
     Отображение десятичных дробей с пробелами между тысячами и запятой в дроби.
     """
     if value is None:
-        return
+        return value
     locale.setlocale(locale.LC_MONETARY, "ru_RU.UTF-8")
     result = locale.currency(value, grouping=True)
     return result

@@ -23,19 +23,8 @@ function cleanForm(form) {
   form.querySelectorAll("td").forEach((field) => {
     field.classList.remove("alert-td");
   });
-  form.querySelector('[name$="-minimum_remainder"]').value = "";
   form.querySelector('[name$="-part"]').value = "";
   form.querySelector('[name$="-quantity"]').value = "0";
-}
-
-function changeMinimumRemainder() {
-  let index = $(this).prop("selectedIndex");
-  let minimum_remainder = $(this)
-    .closest(".input-row")
-    .children("td")
-    .has('[id$="-minimum_remainder"]')
-    .find("select");
-  minimum_remainder.prop("selectedIndex", index);
 }
 
 if (formNum) {
@@ -49,7 +38,6 @@ if (formNum == 1) {
 $('[id$="-part"').each(function () {
   $(this).select2();
 });
-$('[id$="-part"').each(changeMinimumRemainder);
 /////////////////
 
 function removeLastEmpty() {
@@ -80,10 +68,6 @@ function addForm(e) {
   formNum++;
   totalForms.setAttribute("value", `${formNum}`);
   $("#remove-form").show();
-  $('[id$="-part"]').on("change", function () {
-    changeMinimumRemainder.call($(this));
-    resetQuantity.call($(this));
-  });
 }
 
 function removeForm() {
@@ -146,8 +130,6 @@ if (formNum) {
   let partSelect = $('[id$="-part"]');
 
   partSelect.on("change", function () {
-    console.log("HEREA:LJSDF:LKJSDF:LKSJDF:SLDKJF:SLDKJF:SDLKF");
-    changeMinimumRemainder.call($(this));
     resetQuantity.call($(this));
   });
   partSelect.on("change", removeAlert);
