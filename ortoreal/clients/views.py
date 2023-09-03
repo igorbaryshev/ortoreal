@@ -212,6 +212,15 @@ class ClientView(LoginRequiredMixin, UserPassesTestMixin, View):
 
         return render(request, "clients/client.html", context)
 
+    def post(self, request, pk):
+        form = ClientForm(data=request.POST or None)
+        if form.is_valid():
+            form.save()
+        table = ClientProsthesisListTable(self.get_queryset())
+        client = self.get_client()
+        context = {"table": table, "client": client, "form": form}
+        return render(request, "clients/client.html", context)
+
     def get_queryset(self):
         queryset = Job.objects.filter(client=self.get_client()).order_by(
             "-date"
