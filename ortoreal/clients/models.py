@@ -17,17 +17,59 @@ from phonenumber_field.modelfields import PhoneNumberField
 User = get_user_model()
 
 
-class StatusChoices(models.TextChoices):
-    IN_WORK = "in work", _("принят в работу")
-    ISSUED = "issued", _("выдан")
-    DOCS_SUBMITTED = "docs submitted", _("документы сданы")
-    PAYMENT_TO_CLIENT = "payment to client", _("оплата клиенту")
-    PAYMENT = "payment", _("оплата")
+class Status(models.Model):
+    class StatusNames(models.TextChoices):
+        IN_WORK = "in work", _("принят в работу")
+        ISSUED = "issued", _("выдан")
+        DOCS_SUBMITTED = "docs submitted", _("документы сданы")
+        PAYMENT_TO_CLIENT = "payment to client", _("оплата клиенту")
+        PAYMENT = "payment", _("оплата")
 
+    class StatusColors(models.TextChoices):
+        IN_WORK = "in work", "B6D7A8"
+        ISSUED = "issued", "6AA84F"
+        DOCS_SUBMITTED = "docs submitted", "34A853"
+        PAYMENT_TO_CLIENT = "payment to client", "00FFFF"
+        PAYMENT = "payment", "6D9EEB"
 
-# class ContactType(models.TextChoices):
-#     THEY_CALLED = "they_called", _("звонок")
-#     WE_CALLED = "we_called", _("обзвон")
+    name = models.CharField(
+        "статус",
+        max_length=150,
+        choices=StatusNames.choices,
+        default=StatusNames.IN_WORK,
+        blank=False,
+        null=False,
+    )
+    job = models.ForeignKey(
+        "Job",
+        verbose_name="работа",
+        on_delete=models.CASCADE,
+        related_name="statuses",
+    )
+    date = models.DateTimeField("дата", default=timezone.now)
+    comment = models.TextField("комментарий", blank=True)
+    color = models.CharField(
+        "цвет",
+        max_length=150,
+        choices=StatusColors.choices,
+        default=StatusColors.IN_WORK,
+        blank=False,
+        null=False,
+    )
+
+    def __str__(self) -> str:
+        date = date_format(
+            self.date, format="SHORT_DATE_FORMAT", use_l10n=True
+        )
+        return f"{self.get_name_display()} {date}"
+
+    class Meta:
+        verbose_name = "статус"
+        verbose_name_plural = "статусы"
+
+    def save(self, *args, **kwargs):
+        self.color = self.name
+        super().save(*args, **kwargs)
 
 
 class ContactTypeChoice(models.Model):
@@ -75,8 +117,6 @@ class Client(models.Model):
     )
     surname = models.CharField(_("отчество"), max_length=150, blank=True)
     birth_date = models.DateField(_("дата рождения"), blank=True, null=True)
-    # contract_date = models.DateField(_("дата договора"), default=timezone.now)
-    # act_date = models.DateField(_("дата акта(чека)"), default=timezone.now)
     phone = PhoneNumberField(
         _("телефон"), null=False, blank=False, unique=True
     )
@@ -94,9 +134,10 @@ class Client(models.Model):
         max_length=128,
         choices=Region.choices,
     )
-
     snils = models.CharField("СНИЛС", blank=True, null=True)
-
+    snils_scan = models.FileField(
+        "скан СНИЛС", upload_to=client_directory_path, blank=True, null=True
+    )
     ipr = models.FileField(
         "ИПР", upload_to=client_directory_path, blank=True, null=True
     )
@@ -113,6 +154,16 @@ class Client(models.Model):
         if self.surname:
             full_name += " " + self.surname
         return full_name
+
+    @property
+    def full_name(self):
+        return self.get_full_name()
+
+    def get_latest_job_statuses(self):
+        statuses = []
+        for job in self.jobs.all():
+            statuses.append(job.status_display)
+        return statuses
 
     class Meta:
         verbose_name = "клиент"
@@ -256,35 +307,6 @@ class Comment(models.Model):
         return f"{self.date.date()} {self.text[:20]}"
 
 
-class Status(models.Model):
-    name = models.CharField(
-        "статус",
-        max_length=150,
-        choices=StatusChoices.choices,
-        blank=False,
-        null=False,
-        default=StatusChoices.IN_WORK,
-    )
-    job = models.ForeignKey(
-        "Job",
-        verbose_name="работа",
-        on_delete=models.CASCADE,
-        related_name="statuses",
-    )
-    date = models.DateTimeField("дата", default=timezone.now)
-    comment = models.TextField("комментарий", blank=True)
-
-    def __str__(self) -> str:
-        date = date_format(
-            self.date, format="SHORT_DATE_FORMAT", use_l10n=True
-        )
-        return f"{self.get_name_display()} {date}"
-
-    class Meta:
-        verbose_name = "статус"
-        verbose_name_plural = "статусы"
-
-
 class Job(models.Model):
     client = models.ForeignKey(
         Client,
@@ -314,9 +336,7 @@ class Job(models.Model):
         null=True,
     )
     date = models.DateTimeField(_("date"), default=timezone.now)
-    # status = models.CharField(
-    # _("статус"), max_length=150, choices=StatusChoices.choices, blank=True
-    # )
+    is_finished = models.BooleanField("завершена", default=False)
 
     @property
     def status_display(self):
@@ -344,6 +364,8 @@ class Job(models.Model):
         if self.prosthesis and self.client.region != self.prosthesis.region:
             raise IntegrityError("регион клиента и протеза должны быть равны")
         super().save(*args, **kwargs)
+        if not self.statuses.exists():
+            Status.objects.create(job=self)
 
     def get_absolute_url(self):
         return reverse("clients:job", kwargs={"pk": self.pk})

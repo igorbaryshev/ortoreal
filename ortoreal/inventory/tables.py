@@ -1,16 +1,27 @@
+import locale
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Case, Count, F, Sum, Value, When
 from django.db.models.functions import Concat
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.safestring import mark_safe
 
 import django_tables2 as tables
 
 from clients.models import Job
 from clients.tables import ItemsColumn
-from inventory.models import InventoryLog, Item, Order, Part, Vendor
+from inventory.models import (
+    InventoryLog,
+    Item,
+    Order,
+    Part,
+    Vendor,
+    VendorOrder,
+)
 from inventory.utils import get_dec_display, wrap_in_color
+from users.models import User
 
 TD_END = {
     "td": {
@@ -32,7 +43,7 @@ class NomenclatureTable(tables.Table):
     vendor_code = tables.Column(
         "Артикул", attrs={"td": {"style": "min-width: 18ch;"}}
     )
-    quantity = tables.Column("На складе", accessor="items")
+    quantity = tables.Column("На складе")
     price = tables.Column(
         "Цена, руб.",
         attrs={"td": {"class": "text-end", "style": "min-width: 11ch;"}},
@@ -44,11 +55,8 @@ class NomenclatureTable(tables.Table):
     minimum_remainder = tables.Column(
         "Неснижаемый остаток", attrs={"td": {"style": "width: 4ch;"}}
     )
-
-    def render_quantity(self, record):
-        quantity = record.items.filter(job=None, arrived=True).count()
-        units = record.units or ""
-        return f"{quantity} {units}"
+    available = tables.Column("Доступно")
+    in_reserve = tables.Column("В резерве")
 
     def render_price(self, value):
         return get_dec_display(value)
@@ -279,6 +287,82 @@ class OrdersTable(tables.Table):
         template_name = "django_tables2/bootstrap5-responsive.html"
 
 
+class VendorOrdersTable(tables.Table):
+    """
+    Таблица списка заказов.
+    """
+
+    parts = tables.Column("Комплектующие", empty_values=())
+    total_price = tables.Column("Итоговая цена, руб.", empty_values=())
+
+    def render_parts(self, record):
+        PER_LINE = 6
+        SEPARATOR = "<br/>"
+
+        parts = (
+            record.order.items.filter(part__vendor=record.vendor)
+            .values("part")
+            .annotate(
+                item_count=Count("id"),
+                items_filled=Count(Case(When(arrived=True, then=1))),
+                color=Case(
+                    When(item_count=F("items_filled"), then=Value("green")),
+                    When(items_filled=0, then=Value("red")),
+                    default=Value("yellow"),
+                    output_field=models.CharField(),
+                ),
+                status=Concat(
+                    F("part__vendor_code"),
+                    Value(" ("),
+                    F("items_filled"),
+                    Value("/"),
+                    F("item_count"),
+                    Value(")"),
+                    output_field=models.CharField(),
+                ),
+            )
+            .order_by("part__vendor_code")
+        )
+
+        items = []
+        for i, part in enumerate(parts):
+            content = wrap_in_color(color=part["color"], string=part["status"])
+            items.append(content)
+            # вставляем разделение
+            if ((len(items) + 1) % (PER_LINE + 1) == 0) and (
+                i < (len(parts) + 1)
+            ):
+                items.append(SEPARATOR)
+
+        return mark_safe(" ".join(items))
+
+    def render_total_price(self, record):
+        price = (
+            Order.objects.filter(pk=record.pk)
+            .annotate(total_price=Sum("items__price"))
+            .values_list("total_price", flat=True)[0]
+        )
+        return get_dec_display(price)
+
+    class Meta:
+        orderable = False
+        model = VendorOrder
+        sequence = (
+            "id",
+            "date",
+            "vendor",
+            "invoice_number",
+            "parts",
+            "total_price",
+        )
+        exclude = ("current",)
+        # row_attrs = {
+        #     "data-href": lambda record: record.get_absolute_url,
+        #     "style": "cursor: pointer;",
+        # }
+        template_name = "django_tables2/bootstrap5-responsive.html"
+
+
 class InventoryLogsTable(tables.Table):
     """
     Таблица логов инвентаря.
@@ -339,20 +423,11 @@ class JobSetsTable(tables.Table):
     status = tables.Column("Статус", empty_values=())
 
     def render_status(self, record, column):
-        status_colors = {
-            "in work": "B6D7A8",
-            "issued": "6AA84F",
-            "docs submitted": "34A853",
-            "payment to client": "00FFFF",
-            "payment": "6D9EEB",
-        }
-        # задаём цвет статуса
         if not record.statuses.exists():
             return record.status_display
-        status = record.statuses.latest("date").name
-        if status in status_colors:
-            color = status_colors[status]
-            column.attrs = {"td": {"style": f"background: #{color};"}}
+        # задаём цвет статуса
+        status = record.statuses.latest("date").get_color_display()
+        column.attrs = {"td": {"style": f"background: #{status};"}}
         # вставляем перенос строки между статусом и датой статуса
         # rsplit разделяет с конца
         return mark_safe("<br/>".join(record.status_display.rsplit(" ", 1)))
@@ -465,3 +540,35 @@ class ClientItemsTable(PartItemsTable):
             "style": "cursor: pointer;",
         }
         template_name = "django_tables2/bootstrap5-responsive.html"
+
+
+class ProsthetistItemsTable(tables.Table):
+    """
+    Таблица комплектующих, которые взяли под себя протезисты.
+    """
+
+    full_name = tables.Column("Имя")
+    items = tables.Column("Инвентарь", empty_values=())
+
+    def render_items(self, value):
+        locale.setlocale(locale.LC_ALL, "ru_RU")
+        column = []
+        for item in value.order_by("date"):
+            part = item.item.part
+            date = timezone.localtime(item.date).strftime("%d-%b-%Y %H:%M")
+            string = f"<br>{part} ({date})</br>"
+            column.append(string)
+        locale.setlocale(locale.LC_ALL, "")
+        return mark_safe("".join(column))
+
+    class Meta:
+        model = User
+        orderable = False
+        sequence = [
+            "full_name",
+            "items",
+        ]
+        fields = [
+            "full_name",
+            "items",
+        ]

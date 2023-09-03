@@ -1,0 +1,28 @@
+.status-pill {
+    padding: 2px;
+    border-radius: 2px;
+}
+
+.in-work {
+    background: #B6D7A8 !important;
+}
+
+.issued {
+    background: #6AA84F !important;
+}
+
+.docs-submitted {
+    background: #34A853 !important;
+}
+
+.payment-to-client {
+    background: #00FFFF !important;
+}
+
+.payment {
+    background: #6D9EEB !important;
+}
+
+br {
+    margin-bottom: 2px;
+}

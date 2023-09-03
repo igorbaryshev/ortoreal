@@ -24,9 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", "replace_in_production")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", False) == "True"
+DEBUG = os.getenv("DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split()
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "192.168.100.235").split()
 
 
 # Application definition
@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "django_bootstrap5",
     "django_filters",
     "bootstrap_datepicker_plus",
+    "colorfield",
 ]
 
 MIDDLEWARE = [
@@ -103,8 +104,8 @@ DATABASES = {
         "NAME": os.getenv("POSTGRES_DB", "ortoreal"),
         "USER": os.getenv("POSTGRES_USER", "ortoreal_user"),
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "ortoreal_password"),
-        "HOST": os.getenv("DB_HOST", "db"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+        "HOST": os.getenv("DB_HOST", "localhost"),
+        "PORT": os.getenv("DB_PORT", ""),
     }
 }
 

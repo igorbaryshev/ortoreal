@@ -41,7 +41,8 @@ def get_dec_display(value):
     Отображение десятичных дробей с пробелами между тысячами и запятой в дроби.
     """
     if value is None:
-        return value
+        return ""
+        # return value
     locale.setlocale(locale.LC_MONETARY, "ru_RU.UTF-8")
     result = locale.currency(value, grouping=True)
     return result
@@ -509,7 +510,7 @@ def remove_excess_from_current_order():
 
 
 def wrap_in_color(color, string=None, link=False):
-    colors = {"red", "yellow", "blue", "green"}
+    colors = {"red", "yellow", "blue", "green", "darkgreen"}
     if color in colors:
         if link:
             attrs = {

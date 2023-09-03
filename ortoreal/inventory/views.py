@@ -4,9 +4,11 @@ from collections import defaultdict
 from decimal import Decimal
 from typing import Any, Dict
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import (
     Case,
+    CharField,
     Count,
     F,
     Max,
@@ -43,7 +45,7 @@ from inventory.forms import (
     ProsthesisSelectForm,
     ReceptionItemFormSet,
 )
-from inventory.models import InventoryLog, Item, Order, Part
+from inventory.models import InventoryLog, Item, Order, Part, VendorOrder
 from inventory.tables import (
     InventoryLogsTable,
     JobSetsTable,
@@ -52,7 +54,9 @@ from inventory.tables import (
     OrdersTable,
     OrderTable,
     PartItemsTable,
+    ProsthetistItemsTable,
     VendorExportTable,
+    VendorOrdersTable,
 )
 from inventory.utils import (  # TODO; check_minimum_remainder,
     OrderedCounter,
@@ -65,6 +69,8 @@ from inventory.utils import (  # TODO; check_minimum_remainder,
 )
 
 PARTS_PER_PAGE = 20
+
+User = get_user_model()
 
 
 class LoginRequiredMixin(LoginRequiredMixin):
@@ -93,7 +99,28 @@ class NomenclatureListView(
         return self.request.user.is_manager or self.request.user.is_staff
 
     def get_queryset(self) -> QuerySet[Any]:
-        queryset = Part.objects.order_by("vendor_code")
+        queryset = (
+            Part.objects.filter(items__job=None)
+            .order_by("vendor_code")
+            .annotate(
+                quantity=Concat(
+                    Count("items", filter=Q(items__arrived=True)),
+                    Value(" "),
+                    "units",
+                    output_field=CharField(),
+                ),
+                available=Count(
+                    "items",
+                    filter=Q(items__reserved=None, items__arrived=True),
+                ),
+                in_reserve=Count(
+                    "items",
+                    filter=Q(
+                        items__reserved__isnull=False, items__arrived=True
+                    ),
+                ),
+            )
+        )
         return queryset
 
 
@@ -545,6 +572,99 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
         return queryset
 
 
+class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View выбора комплектующих протезистом, и дозаказ недостающих.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_prosthetist or self.request.user.is_manager
+
+    def get(self, request, *args, **kwargs):
+        client_form = JobSelectForm(user=request.user)
+        context = {"forms": [client_form]}
+        return render(request, "inventory/pick_parts.html", context)
+
+    def post(self, request, *args, **kwargs):
+        client_form = JobSelectForm(user=request.user, data=request.POST)
+        job_pk = kwargs.get("job", None)
+        if job_pk is not None:
+            job = get_object_or_404(Job, pk=job_pk)
+            client_form = JobSelectForm(
+                user=request.user, initial={"job": job}
+            )
+        prosthesis_form = ProsthesisSelectForm(data=request.POST or None)
+        formset = PickPartsFormSet(data=request.POST)
+        if client_form.is_valid():
+            job = client_form.cleaned_data["job"]
+            queryset = self.get_queryset(job)
+            # если формсет пустой, то задаём исходные данные
+            if not formset.forms:
+                initial = {"prosthesis": job.prosthesis}
+                prosthesis_form = ProsthesisSelectForm(
+                    initial=initial, job=job
+                )
+                formset = PickPartsFormSet(
+                    initial=queryset.values("part", "quantity")
+                )
+            # иначе, проверяем валидность формы протеза и формсета
+            elif prosthesis_form.is_valid() and formset.is_valid():
+                # записываем модели комплектующих в текущем резерве
+                initial_parts = dict(queryset.values_list("id", "quantity"))
+                parts = []
+                for fs_form in formset:
+                    part = fs_form.cleaned_data["part"]
+                    if part.id in parts:
+                        continue
+                    parts.append(part.id)
+                    quantity = fs_form.cleaned_data["quantity"]
+                    if part.id in initial_parts:
+                        old_quantity = initial_parts[part.id]
+                        # если указанное кол-во больше исходного,
+                        # то выделяем резерв
+                        if quantity > old_quantity:
+                            create_reserve(part, job, quantity - old_quantity)
+                        # если меньше, возвращаем и пересчитываем резервы
+                        elif quantity < old_quantity:
+                            # удалить резервы
+                            remove_reserve(part, job, old_quantity - quantity)
+                            # пересчитать резервы,
+                            reorg_reserves(part, job)
+                    elif quantity:
+                        create_reserve(part, job, quantity)
+                # проверяем удалённые строки
+                for part_id, quantity in initial_parts.items():
+                    if part_id not in parts:
+                        part = Part.objects.get(id=part_id)
+                        remove_reserve(part, job, quantity)
+                        reorg_reserves(part, job)
+
+                prosthesis = prosthesis_form.cleaned_data["prosthesis"]
+                job.prosthesis = prosthesis
+                job.save()
+                # TODO
+                # check_minimum_remainder()
+
+                return redirect("inventory:job_sets")
+
+        context = {
+            "forms": [client_form, prosthesis_form],
+            "formset": formset,
+        }
+        return render(request, "inventory/pick_parts.html", context)
+
+    def get_queryset(self, job):
+        queryset = (
+            Part.objects.filter(items__reserved=job)
+            .annotate(
+                quantity=Count("items", filter=Q(items__reserved=job)),
+                part=F("pk"),
+            )
+            .order_by("vendor_code")
+        )
+        return queryset
+
+
 class FreeOrderAddView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
     View свободного заказа.
@@ -841,6 +961,29 @@ class OrdersView(
         return Order.objects.order_by("-id")
 
 
+class VendorOrdersView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    ExportMixin,
+    tables.SingleTableView,
+):
+    """
+    View списка всех заказов поставщикам.
+    """
+
+    table_class = VendorOrdersTable
+    paginator_class = LazyPaginator
+    paginate_by = PARTS_PER_PAGE
+
+    def test_func(self) -> bool:
+        if self.request.user.is_staff or self.request.user.is_manager:
+            return True
+        return False
+
+    def get_queryset(self) -> QuerySet[Any]:
+        return VendorOrder.objects.order_by("-id").prefetch_related("order")
+
+
 def export_orders(request, pk=None):
     """
     Экспорт заказов по поставщикам в .zip архиве.
@@ -1027,9 +1170,6 @@ class MarginView(
     def test_func(self) -> bool | None:
         return self.request.user.is_manager
 
-    def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
-
     def get_queryset(self) -> QuerySet[Any]:
         queryset = Job.objects.annotate(
             price_items=Sum("items__price"),
@@ -1042,3 +1182,25 @@ class MarginView(
         for job in queryset:
             print(job.margin)
         return queryset
+
+
+class ProsthetistItemsView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    tables.SingleTableView,
+):
+    """
+    View комплектующих взятых протезистами не под клиента.
+    """
+
+    table_class = ProsthetistItemsTable
+    template_name = "inventory/prosthetist_items_list.html"
+
+    def test_func(self) -> bool | None:
+        return self.request.user.is_manager or self.request.user.is_prosthetist
+
+    def get_queryset(self) -> QuerySet[Any]:
+        qs = User.objects.filter(is_prosthetist=True).annotate(
+            full_name=Concat("first_name", Value(" "), "last_name")
+        )
+        return qs

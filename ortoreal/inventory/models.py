@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Iterable, Optional
 
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -9,30 +10,6 @@ from django.utils.translation import gettext_lazy as _
 from clients.models import Job
 
 User = get_user_model()
-
-
-class Order(models.Model):
-    current = models.BooleanField("текущий", default=True)
-    date = models.DateTimeField("дата", default=timezone.now)
-    invoice_number = models.CharField(
-        "номер счёта", max_length=100, blank=True, null=True
-    )
-
-    class Meta:
-        verbose_name = "заказ"
-        verbose_name_plural = "заказы"
-
-    def __str__(self) -> str:
-        status = "оформлен"
-        if self.current:
-            status = "текущий"
-        return f"Заказ {self.id} ({status})"
-
-    def get_absolute_url(self):
-        url = reverse("inventory:order_by_id", kwargs={"pk": self.pk})
-        if self.current:
-            url = reverse("inventory:order")
-        return url
 
 
 class Manufacturer(models.Model):
@@ -59,6 +36,44 @@ class Vendor(models.Model):
 
     def __str__(self):
         return f"{self.name}"
+
+
+class VendorOrder(models.Model):
+    order = models.ForeignKey(
+        "Order", verbose_name="заказ", on_delete=models.CASCADE
+    )
+    vendor = models.ForeignKey(
+        Vendor, verbose_name="поставщик", on_delete=models.CASCADE, null=True
+    )
+    date = models.DateTimeField("дата", default=timezone.now)
+    invoice_number = models.CharField(
+        "номер счёта", max_length=100, blank=True, null=True
+    )
+
+    class Meta:
+        verbose_name = "заказ поставщику"
+        verbose_name_plural = "заказы поставщикам"
+
+
+class Order(models.Model):
+    current = models.BooleanField("текущий", default=True)
+    date = models.DateTimeField("дата", default=timezone.now)
+
+    class Meta:
+        verbose_name = "заказ"
+        verbose_name_plural = "заказы"
+
+    def __str__(self) -> str:
+        status = "оформлен"
+        if self.current:
+            status = "текущий"
+        return f"Заказ {self.id} ({status})"
+
+    def get_absolute_url(self):
+        url = reverse("inventory:order_by_id", kwargs={"pk": self.pk})
+        if self.current:
+            url = reverse("inventory:order")
+        return url
 
 
 class Part(models.Model):
@@ -151,7 +166,7 @@ class Item(models.Model):
     order = models.ForeignKey(
         Order,
         verbose_name="заказ",
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         blank=True,
         null=True,
         related_name="items",
@@ -189,6 +204,26 @@ class Item(models.Model):
             f"admin:{self._meta.app_label}_{self._meta.model_name}_change",
             kwargs={"object_id": self.id},
         )
+
+
+class ProsthetistItem(models.Model):
+    prosthetist = models.ForeignKey(
+        User,
+        verbose_name="протезист",
+        limit_choices_to={"is_prosthetist": True},
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    item = models.ForeignKey(
+        Item,
+        verbose_name="комплектующая",
+        on_delete=models.CASCADE,
+        related_name="prosthetist",
+    )
+    date = models.DateTimeField("дата", default=timezone.now)
+
+    class Meta:
+        verbose_name = "инвентарь у протезиста"
 
 
 class InventoryLog(models.Model):

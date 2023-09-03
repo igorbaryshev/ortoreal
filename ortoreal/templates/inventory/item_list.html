@@ -4,10 +4,10 @@
   {{ part }}
 {% endblock title %}
 {% block static %}
-  <link rel="stylesheet" href="{% static "css/table.css" %}"/>
-  <script src="{% static 'js/table_row_link.js' %}"></script>
+  <link rel="stylesheet" href="{% static "css/table.css" %}" />
 {% endblock static %}
 {% block content %}
   {% load django_tables2 %}
   <div class="card-body">{% render_table table %}</div>
+  <script src="{% static 'js/table_row_link.js' %}"></script>
 {% endblock content %}

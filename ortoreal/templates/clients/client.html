@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load django_bootstrap5 %}
 {% load static %}
 {% block title %}
   {% if job %}
@@ -8,20 +9,32 @@
   {% endif %}
 {% endblock title %}
 {% block static %}
-  <link rel="stylesheet" href="{% static "css/table.css" %}"/>
-  <link rel="stylesheet" href="{% static "css/item_pill.css" %}"/>
-  <script src="{% static 'js/table_row_link.js' %}"></script>
+  <link rel="stylesheet" href="{% static "css/table.css" %}" />
+  <link rel="stylesheet" href="{% static "css/item_pill.css" %}" />
+  <link rel="stylesheet" href="{% static "css/status_pill.css" %}" />
 {% endblock static %}
 {% block content %}
-  {% load django_tables2 %}
   <div class="card-body">
-    <h3>
-      {% if job %}
-        {{ job.client }}. {{ job.status_display }}
-      {% else %}
-        {{ client }} - {{ client.get_region_display }}
-      {% endif %}
-    </h3>
-    {% render_table table %}
+    <div class="row">
+      <div class="col-3">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% bootstrap_form form %}
+          <input type="submit" value="Сохранить">
+        </form>
+      </div>
+      {% load django_tables2 %}
+      <div class="col">
+        <h3>
+          {% if job %}
+            {{ job.client }}. {{ job.status_display }}
+          {% else %}
+            {{ client }} - {{ client.get_region_display }}
+          {% endif %}
+        </h3>
+        {% render_table table %}
+      </div>
+    </div>
   </div>
+  <script src="{% static 'js/table_row_link.js' %}"></script>
 {% endblock content %}

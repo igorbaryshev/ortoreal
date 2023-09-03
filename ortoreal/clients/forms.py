@@ -42,3 +42,9 @@ class ContactForm(forms.ModelForm):
                 attrs={"value": timezone.now}, format="%Y-%m-%d"
             ),
         }
+
+
+class ClientForm(forms.ModelForm):
+    class Meta:
+        model = Client
+        fields = "__all__"

@@ -1,17 +1,16 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}
-  {{ title }}
+  Заказы
 {% endblock title %}
 {% block static %}
-  <link rel="stylesheet" href="{% static "css/table.css" %}" />
-  <link rel="stylesheet" href="{% static "css/item_pill.css" %}" />
+  <link rel="stylesheet" href="{% static "css/table.css" %}"/>
+  <link rel="stylesheet" href="{% static "css/item_pill.css" %}"/>
+  <script src="{% static 'js/table_row_link.js' %}"></script>
 {% endblock static %}
 {% block content %}
   {% load django_tables2 %}
   <div class="card-body">
-    <h3>{{ title }}</h3>
     {% render_table table %}
   </div>
-  <script src="{% static 'js/table_row_link.js' %}"></script>
 {% endblock content %}

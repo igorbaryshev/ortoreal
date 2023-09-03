@@ -33,7 +33,7 @@ class JobAdminForm(ModelForm):
     def clean(self):
         client = self.cleaned_data["client"]
         prosthesis = self.cleaned_data["prosthesis"]
-        if client.region != prosthesis.region:
+        if prosthesis and client.region != prosthesis.region:
             raise forms.ValidationError(
                 {
                     "prosthesis": "регион протеза не может отличаться от региона клиента"
@@ -48,6 +48,19 @@ class CommentInline(admin.TabularInline):
     formfield_overrides = {
         models.TextField: {"widget": Textarea(attrs={"rows": 2, "cols": 60})},
     }
+
+
+@admin.register(ContactTypeChoice)
+class ContactTypeChoiceAdmin(admin.ModelAdmin):
+    list_display = ("contact",)
+    ordering = ("-name", "prosthetist")
+
+    def contact(self, obj):
+        if obj.name:
+            return obj.name
+        return obj.prosthetist
+
+    contact.short_description = "откуда обратились"
 
 
 @admin.register(Contact)

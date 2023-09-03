@@ -3,7 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.utils import timezone
 
-from clients.models import Job
+from clients.models import Client, Job
 from inventory.models import InventoryLog, Item, Part, Prosthesis
 
 
@@ -181,7 +181,7 @@ ItemReturnFormSet = forms.formset_factory(
 
 class JobSelectForm(forms.Form):
     """
-    Форма выбора клиента для страницы выбора комплектации.
+    Форма выбора работы для страницы выбора комплектации.
     """
 
     job = forms.ModelChoiceField(
@@ -204,9 +204,58 @@ class JobSelectForm(forms.Form):
         self.fields["job"].empty_label = "---выбрать---"
 
 
+class ClientSelectForm(forms.Form):
+    """
+    Форма выбора клиента для страницы выбора комплектации.
+    """
+
+    client = forms.ModelChoiceField(
+        queryset=Client.objects.filter(jobs__isnull=False).order_by(
+            "last_name", "first_name", "surname"
+        ),
+        label="Клиент",
+        widget=forms.Select(
+            attrs={
+                "onchange": "clearFormSet(); this.form.submit();",
+            }
+        ),
+    )
+
+    def __init__(self, user, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if not user.is_manager:
+            self.fields["client"].queryset = self.fields[
+                "client"
+            ].queryset.filter(
+                prosthetist=user
+            )  # .order_by("-client")
+
+        self.fields["client"].empty_label = "---выбрать---"
+
+
 class ProsthesisSelectForm(forms.ModelForm):
     """
     Форма выбора протеза.
+    """
+
+    class Meta:
+        model = Job
+        fields = ("prosthesis",)
+
+    def __init__(self, job=None, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if job is not None:
+            region = job.client.region
+            self.fields["prosthesis"].queryset = Prosthesis.objects.filter(
+                region=region
+            ).order_by("number")
+            self.fields["prosthesis"].empty_label = "---выбрать---"
+            self.fields["prosthesis"].initial = job.prosthesis
+
+
+class ClientJobsSelectForm(forms.ModelForm):
+    """
+    Форма выбора работы клиента.
     """
 
     class Meta:
