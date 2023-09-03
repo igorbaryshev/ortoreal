@@ -41,8 +41,12 @@
                  href="{% url 'inventory:margins' %}">Маржа</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link{% if view_name == 'inventory:orders' or view_name == 'inventory:order' or view_name == 'invenotry:order_by_id' %} active{% endif %}"
+              <a class="nav-link{% if view_name == 'inventory:orders' or view_name == 'inventory:order' or view_name == 'inventory:order_by_id' %} active{% endif %}"
                  href="{% url 'inventory:orders' %}">Заказы</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link{% if view_name == 'inventory:prosthetist_items' %} active{% endif %}"
+                 href="{% url 'inventory:prosthetist_items' %}">Инвентарь у протезистов</a>
             </li>
             {% comment %}
             <li class="nav-item">

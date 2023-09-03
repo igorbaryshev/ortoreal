@@ -556,7 +556,7 @@ class ProsthetistItemsTable(tables.Table):
         for item in value.order_by("date"):
             part = item.item.part
             date = timezone.localtime(item.date).strftime("%d-%b-%Y %H:%M")
-            string = f"<br>{part} ({date})</br>"
+            string = f"<br>({date}) {part}</br>"
             column.append(string)
         locale.setlocale(locale.LC_ALL, "")
         return mark_safe("".join(column))

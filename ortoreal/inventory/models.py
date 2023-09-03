@@ -224,6 +224,11 @@ class ProsthetistItem(models.Model):
 
     class Meta:
         verbose_name = "инвентарь у протезиста"
+        verbose_name_plural = "инвентарь у протезиста"
+
+    def __str__(self) -> str:
+        date = timezone.localtime(self.date).strftime("%d-%b-%Y %H:%M")
+        return f"({date}) {self.item.part}"
 
 
 class InventoryLog(models.Model):
