@@ -213,7 +213,8 @@ class ClientView(LoginRequiredMixin, UserPassesTestMixin, View):
         return render(request, "clients/client.html", context)
 
     def post(self, request, pk):
-        form = ClientForm(data=request.POST or None)
+        client = get_object_or_404(Client, pk=pk)
+        form = ClientForm(data=request.POST or None, instance=client)
         if form.is_valid():
             form.save()
         table = ClientProsthesisListTable(self.get_queryset())

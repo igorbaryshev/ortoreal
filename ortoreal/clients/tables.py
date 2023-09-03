@@ -291,7 +291,6 @@ class ClientsTable(tables.Table):
         return self.get_yesno(value)
 
     def render_statuses(self, record, column):
-        print(record.jobs.latest("date").statuses.latest("date"))
         jobs = record.jobs.filter(is_finished=False).order_by("-date")
         statuses_display = []
         for job in jobs:
