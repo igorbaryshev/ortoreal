@@ -551,14 +551,14 @@ class ProsthetistItemsTable(tables.Table):
     items = tables.Column("Инвентарь", empty_values=())
 
     def render_items(self, value):
-        locale.setlocale(locale.LC_ALL, "ru_RU")
+        # locale.setlocale(locale.LC_ALL, "ru_RU")
         column = []
         for item in value.order_by("date"):
             part = item.item.part
             date = timezone.localtime(item.date).strftime("%d-%b-%Y %H:%M")
             string = f"<br>({date}) {part}</br>"
             column.append(string)
-        locale.setlocale(locale.LC_ALL, "")
+        # locale.setlocale(locale.LC_ALL, "")
         return mark_safe("".join(column))
 
     class Meta:
