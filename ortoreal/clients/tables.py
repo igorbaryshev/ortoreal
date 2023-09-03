@@ -257,7 +257,7 @@ ClientsBooleanColumn = tables.BooleanColumn(yesno="✅,❌", empty_values=())
 
 
 class ClientsTable(tables.Table):
-    last_job_date = tables.Column("Дата последней работы")
+    latest_job_date = tables.Column("Дата последней работы")
     full_name = tables.Column("ФИО")
     jobs_count = tables.Column("Всего работ", accessor="jobs_count")
     jobs_in_progress = tables.Column("Активные", accessor="jobs_in_progress")
@@ -291,12 +291,14 @@ class ClientsTable(tables.Table):
     def render_statuses(self, record, column):
         print(record.jobs.latest("date").statuses.latest("date"))
         jobs = record.jobs.filter(is_finished=False).order_by("-date")
-        statuses = [job.statuses.latest("date") for job in jobs]
         statuses_display = []
-        for status in statuses:
+        for job in jobs:
+            status = job.statuses.latest("date")
+            job_name = job.prosthesis or "протез не выбран"
             status_name = "-".join(status.name.split())
             status_display = (
-                f'<span class="{status_name} status-pill">' f"{status}</span>"
+                f'<span class="{status_name} status-pill">'
+                f"{job_name} - {status}</span>"
             )
             statuses_display.append(status_display)
         output = "<br>".join(statuses_display)
@@ -304,6 +306,7 @@ class ClientsTable(tables.Table):
 
     class Meta:
         model = Client
+        orderable = False
         sequence = [
             "id",
             "full_name",

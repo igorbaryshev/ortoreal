@@ -175,7 +175,7 @@ class ClientsListView(
             jobs_in_progress=Count("jobs", filter=Q(jobs__is_finished=False)),
             latest_job_date=Max("jobs__date"),
         ).order_by("-latest_job_date")
-        print(qs.values("jobs_count"))
+        print(qs.values("latest_job_date"))
         return qs
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
