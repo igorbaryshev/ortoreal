@@ -280,6 +280,8 @@ class ClientsTable(tables.Table):
         return str(record)
 
     def render_snils(self, value):
+        if value:
+            return value
         return self.get_yesno(value)
 
     def render_passport(self, value):
