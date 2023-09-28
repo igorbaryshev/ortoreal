@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+{% load static %}
+{% block title %}
+  Добавить работу
+  {% if client %}для {{ client }}{% endif %}
+{% endblock title %}
+{% block content %}
+  <div class="card-body">
+    {% if client %}
+      <h4>Работа для {{ client }}</h4>
+    {% else %}
+      <h4>Добавить работу</h4>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data" id="form-container">
+      {% csrf_token %}
+      {% bootstrap_form form %}
+      <div class="button-row position-relative">
+        <button id="submit-form"
+                type="submit"
+                class="btn btn-primary position-absolute end-0">Добавить</button>
+      </div>
+    </form>
+  </div>
+{% endblock content %}

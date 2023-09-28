@@ -15,7 +15,7 @@ from inventory.utils import dec2pre
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("current", "date", "item_count", "price")
+    list_display = ("is_current", "date", "item_count", "price")
 
     def item_count(self, obj):
         return obj.items.count()

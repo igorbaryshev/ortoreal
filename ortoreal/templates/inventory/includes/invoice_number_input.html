@@ -1,0 +1,8 @@
+<input id="id_form-{{ record.row|add:"-1" }}-invoice_number"
+       type="text"
+       name="form-{{ record.row|add:"-1" }}-invoice_number"
+       placeholder="{% if record.invoice_number %}{{ record.invoice_number }}{% endif %}">
+<input type="hidden"
+       name="form-{{ record.row|add:"-1" }}-part_id"
+       value="{{ record.part_id }}"
+       id="id_form-{{ record.row|add:"-1" }}-part_id">

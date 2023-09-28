@@ -6,15 +6,23 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core import serializers
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Case, Count, F, Max, Q, When
 from django.db.models.functions import Concat
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
+from django.views.generic import DetailView
 
 import django_tables2 as tables
 
-from clients.forms import ClientContactForm, ClientForm, ContactForm
+from clients.forms import (
+    ClientContactForm,
+    ClientForm,
+    ContactForm,
+    JobClientForm,
+    JobForm,
+)
 from clients.models import Client, Comment, Contact, Job
 from clients.tables import ClientProsthesisListTable, ClientsTable
 from inventory.tables import ClientItemsTable
@@ -191,13 +199,7 @@ class ClientView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
 
     def test_func(self) -> bool:
-        if self.request.user.is_manager:
-            return True
-        if self.request.user.is_prosthetist:
-            return Job.objects.filter(
-                client=self.get_client(), prosthetist=self.request.user
-            )
-        return False
+        return self.request.user.is_manager or self.request.user.is_prosthetist
 
     def get_client(self):
         pk = self.kwargs.get("pk")
@@ -227,3 +229,101 @@ class ClientView(LoginRequiredMixin, UserPassesTestMixin, View):
             "-date"
         )
         return queryset
+
+
+class JobCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View создания работы.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_manager or self.request.user.is_prosthetist
+
+    def get(self, request, pk=None):
+        if pk is not None:
+            client = get_object_or_404(Client, pk=pk)
+            form = JobClientForm(initial={"client": client})
+            context = {"client": client, "form": form}
+        else:
+            context = {"form": JobForm()}
+        return render(request, "clients/job_add.html", context)
+
+    def post(self, request, pk=None):
+        if pk is not None:
+            client = get_object_or_404(Client, pk=pk)
+            form = JobClientForm(request.POST or {"client": client})
+            if form.is_valid():
+                job = form.save(commit=False)
+                job.client = client
+                job.save()
+                return redirect("clients:client", pk=client.pk)
+            context = {"form": form, "client": client}
+        else:
+            form = JobForm(request.POST or None)
+            if form.is_valid():
+                job = form.save()
+                client = job.client
+                return redirect("clients:client", pk=client.pk)
+            context = {"form": form}
+
+        return render(request, "clients/job_add.html", context)
+
+
+class ContactCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View создания обращения.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_manager or self.request.user.is_prosthetist
+
+    def get(self, request, pk=None):
+        client = get_object_or_404(Client, pk=pk)
+        form = ContactForm(initial={"client": client})
+        context = {"form": form, "client": client}
+        return render(request, "clients/contact_add.html", context)
+
+    def post(self, request, pk=None):
+        if pk is not None:
+            client = get_object_or_404(Client, pk=pk)
+        form = ContactForm(request.POST or {"client": client} or None)
+
+        if form.is_valid():
+            contact = form.save(commit=False)
+            contact.client = client
+            contact.save()
+            return redirect("clients:client", pk=client.pk)
+
+        context = {"form": form, "client": client}
+        return render(request, "clients/contact_add.html", context)
+
+
+class ClientCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View создания клиента.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_manager or self.request.user.is_prosthetist
+
+    def get(self, request):
+        form_client = ClientContactForm()
+        form_contact = ContactForm()
+        context = {"form_client": form_client, "form_contact": form_contact}
+        return render(request, "clients/add.html", context)
+
+    @transaction.atomic
+    def post(self, request):
+        form_client = ClientContactForm(request.POST or None)
+        form_contact = ContactForm(request.POST or None)
+
+        if form_client.is_valid():
+            client = form_client.save()
+            if form_contact.is_valid():
+                contact = form_contact.save(commit=False)
+                contact.client = client
+                contact.save()
+                return redirect("clients:client", pk=client.pk)
+
+        context = {"form_client": form_client, "form_contact": form_contact}
+        return render(request, "clients/add.html", context)

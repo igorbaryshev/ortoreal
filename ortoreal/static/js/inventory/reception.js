@@ -13,9 +13,9 @@ $(document).ready(function () {
 
   function resetInputs() {
     let columns = $(this).closest(".input-row");
-    columns.find('[id$="-vendor2"]').prop({"checked": false});
-    columns.find('[id$="-quantity"]').prop({"value": 0});
-    columns.find('[id$="-price"]').prop({"value": "0.00"});
+    columns.find('[id$="-vendor2"]').prop({ checked: false });
+    columns.find('[id$="-quantity"]').prop({ value: 0 });
+    columns.find('[id$="-price"]').prop({ value: "0.00" });
   }
 
   // подготавливаем переменные и события в форме
@@ -34,7 +34,7 @@ $(document).ready(function () {
   partSelect.each(function () {
     $(this).select2({});
   });
-  partSelect.on("change", resetInputs)
+  partSelect.on("change", resetInputs);
   partSelect.on("change", removeAlert);
   ////////////////////////////////////////////////////
 
@@ -114,4 +114,10 @@ $(document).ready(function () {
   addButton.addEventListener("click", addForm);
   removeButton.addEventListener("click", removeForm);
   submitButton.addEventListener("click", removeLastEmpty);
+
+  function clearFormSet(e) {
+    if (totalForms) {
+      totalForms.setAttribute("value", "0");
+    }
+  }
 });

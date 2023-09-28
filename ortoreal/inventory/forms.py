@@ -4,7 +4,7 @@ from django import forms
 from django.utils import timezone
 
 from clients.models import Client, Job
-from inventory.models import InventoryLog, Item, Part, Prosthesis
+from inventory.models import InventoryLog, Item, Order, Part, Prosthesis
 
 
 class DatePicker(forms.DateInput):
@@ -102,6 +102,7 @@ class ReceptionItemForm(ItemForm):
     # warehouse = forms.ChoiceField(
     # label="Склад", choices=Item.Warehouse.choices, required=True
     # )
+    # part = forms.ModelChoiceField()
     vendor2 = forms.BooleanField(label="Поставщик 2", required=False)
     price = forms.DecimalField(
         label="Цена, руб.",
@@ -358,3 +359,35 @@ class FreeOrderForm(ItemForm):
 
 
 FreeOrderFormSet = forms.formset_factory(FreeOrderForm, extra=1)
+
+
+class ReceptionForm(forms.ModelForm):
+    # invoice_number = forms.ChoiceField(
+    #     label="Номер счёта",
+    #     queryset=Order.objects.filter(
+    #         items__arrived=False,
+    #         is_current=False,
+    #         invoice_number__isnull=False,
+    #     ).distinct(),
+    # )
+
+    invoice_number = forms.ChoiceField(
+        label="Номер счёта",
+        widget=forms.Select(
+            attrs={
+                "onchange": "clearFormSet(); this.form.submit();",
+            }
+        ),
+    )
+
+    class Meta:
+        model = InventoryLog
+        fields = ["invoice_number", "comment"]
+
+
+class InvoiceNumberForm(forms.Form):
+    part_id = forms.CharField(required=False)
+    invoice_number = forms.CharField(max_length=100, required=False)
+
+
+InvoiceNumberFormSet = forms.formset_factory(InvoiceNumberForm, extra=0)

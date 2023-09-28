@@ -26,7 +26,9 @@ SECRET_KEY = os.getenv("SECRET_KEY", "replace_in_production")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "192.168.100.235").split()
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS", "192.168.100.235 localhost 127.0.0.1"
+).split()
 
 
 # Application definition
@@ -104,7 +106,7 @@ DATABASES = {
         "NAME": os.getenv("POSTGRES_DB", "ortoreal"),
         "USER": os.getenv("POSTGRES_USER", "ortoreal_user"),
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "ortoreal_password"),
-        "HOST": os.getenv("DB_HOST", "localhost"),
+        "HOST": os.getenv("DB_HOST", ""),
         "PORT": os.getenv("DB_PORT", ""),
     }
 }

@@ -12,6 +12,11 @@ urlpatterns = [
     ),
     path("items/<int:pk>/", views.PartItemsListView.as_view(), name="items"),
     path("reception/", views.ReceptionView.as_view(), name="reception"),
+    path(
+        "reception/<int:pk>/",
+        views.ReceptionOrderView.as_view(),
+        name="reception_order",
+    ),
     path("take/", views.TakeItemsView.as_view(), name="take_items"),
     path("return/", views.ReturnItemsView.as_view(), name="return_items"),
     path("add_parts/", views.AddPartsView.as_view(), name="add_parts"),
@@ -28,6 +33,11 @@ urlpatterns = [
         name="free_order_edit",
     ),
     path("orders/<int:pk>/", views.OrderView.as_view(), name="order_by_id"),
+    path(
+        "orders/<int:pk>/cancel/",
+        views.OrderCancelView.as_view(),
+        name="order_cancel",
+    ),
     path(
         "orders/current/download/", views.export_orders, name="export_current"
     ),

@@ -1,13 +1,15 @@
+import locale
 from decimal import Decimal
 from typing import Iterable, Optional
 
 from django.contrib.auth import get_user_model
-from django.db import models
+from django.db import models, transaction
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from clients.models import Job
+from core.utils import get_date_display
 
 User = get_user_model()
 
@@ -38,40 +40,48 @@ class Vendor(models.Model):
         return f"{self.name}"
 
 
-class VendorOrder(models.Model):
-    order = models.ForeignKey(
-        "Order", verbose_name="заказ", on_delete=models.CASCADE
-    )
+class Order(models.Model):
     vendor = models.ForeignKey(
         Vendor, verbose_name="поставщик", on_delete=models.CASCADE, null=True
     )
-    date = models.DateTimeField("дата", default=timezone.now)
+    date = models.DateTimeField("дата", default=timezone.now, null=True)
     invoice_number = models.CharField(
         "номер счёта", max_length=100, blank=True, null=True
     )
+    is_current = models.BooleanField("текущий", default=False)
 
-    class Meta:
-        verbose_name = "заказ поставщику"
-        verbose_name_plural = "заказы поставщикам"
-
-
-class Order(models.Model):
-    current = models.BooleanField("текущий", default=True)
-    date = models.DateTimeField("дата", default=timezone.now)
+    @classmethod
+    def get_current(cls):
+        order, _ = cls.objects.get_or_create(
+            is_current=True, defaults={"date": None}
+        )
+        return order
 
     class Meta:
         verbose_name = "заказ"
         verbose_name_plural = "заказы"
 
     def __str__(self) -> str:
-        status = "оформлен"
-        if self.current:
-            status = "текущий"
-        return f"Заказ {self.id} ({status})"
+        if self.is_current:
+            return "текущий"
+        locale.setlocale(locale.LC_MONETARY, "ru_RU.UTF-8")
+        date = get_date_display(self.date)
+        invoice_number = ""
+        if self.invoice_number is not None:
+            invoice_number = self.invoice_number + " "
+        return f"{self.vendor} {invoice_number}({date})"
+
+    def save(self, *args, **kwargs):
+        if not self.is_current:
+            return super().save(*args, **kwargs)
+        with transaction.atomic():
+            Order.objects.filter(is_current=True).update(is_current=False)
+            self.date = timezone.now()
+            super().save(*args, **kwargs)
 
     def get_absolute_url(self):
         url = reverse("inventory:order_by_id", kwargs={"pk": self.pk})
-        if self.current:
+        if self.is_current:
             url = reverse("inventory:order")
         return url
 
@@ -170,6 +180,7 @@ class Item(models.Model):
         blank=True,
         null=True,
         related_name="items",
+        default=Order.get_current,
     )
     price = models.DecimalField(
         "цена, руб.", max_digits=11, decimal_places=2, default=Decimal("0.00")
@@ -178,6 +189,9 @@ class Item(models.Model):
         "Свободный заказ",
         default=False,
         help_text="Запретить удаление из заказа при пересчёте резервов.",
+    )
+    invoice_number = models.CharField(
+        "номер счёта", max_length=100, blank=True, null=True
     )
 
     @property

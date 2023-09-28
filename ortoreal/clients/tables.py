@@ -137,7 +137,7 @@ class ItemsColumn(tables.ManyToManyColumn):
             if item.job is None:
                 return "green"
             return "darkgreen"
-        if item.order and item.order.current:
+        if item.order and item.order.is_current:
             return "red"
         return "blue"
 
@@ -148,7 +148,7 @@ class ItemsColumn(tables.ManyToManyColumn):
                 status = "(C)"
             else:
                 status = "(П)"
-        elif item.order and item.order.current:
+        elif item.order and item.order.is_current:
             status = "(T)"
         return item.part.vendor_code + " " + status
 
@@ -221,7 +221,7 @@ class StatusesColumn(tables.ManyToManyColumn):
             if item.job is None:
                 return "green"
             return "darkgreen"
-        if item.order and item.order.current:
+        if item.order and item.order.is_current:
             return "red"
         return "blue"
 
@@ -232,7 +232,7 @@ class StatusesColumn(tables.ManyToManyColumn):
                 status = "(C)"
             else:
                 status = "(П)"
-        elif item.order and item.order.current:
+        elif item.order and item.order.is_current:
             status = "(T)"
         return item.part.vendor_code + " " + status
 
@@ -314,10 +314,13 @@ class ClientsTable(tables.Table):
             "jobs_count",
             "jobs_in_progress",
             "statuses",
+            "birth_date",
+            "phone",
+            "address",
             "passport",
             "bank_details",
         ]
-        exclude = ["last_name", "first_name", "surname"]
+        exclude = ["last_name", "first_name", "surname", "prosthetist"]
         row_attrs = {
             "data-href": lambda record: record.get_absolute_url,
             "style": "cursor: pointer;",

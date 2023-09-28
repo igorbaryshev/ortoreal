@@ -32,7 +32,13 @@
             {{ client }} - {{ client.get_region_display }}
           {% endif %}
         </h3>
-        {% render_table table %}
+        <div class="row">
+          <a class="btn btn-secondary col"
+             href="{% url 'clients:add_contact' pk=client.pk %}">Добавить обращение</a>
+          <a class="btn btn-primary col"
+             href="{% url 'clients:add_job_client' pk=client.pk %}">Добавить работу</a>
+        </div>
+        <div class="row">{% render_table table %}</div>
       </div>
     </div>
   </div>

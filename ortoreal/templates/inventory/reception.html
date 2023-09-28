@@ -27,8 +27,8 @@
       {% endfor %}
       {{ formset.management_form }}
       <div class="table-responsive">
-        <link rel="stylesheet" href="{% static "css/form_table.css" %}"/>
-        <link rel="stylesheet" href="{% static "css/take_table.css" %}"/>
+        <link rel="stylesheet" href="{% static "css/form_table.css" %}" />
+        <link rel="stylesheet" href="{% static "css/take_table.css" %}" />
         <table class="table table-bordered align-middle">
           {% include "includes/form_table_head.html" with form=formset.0 %}
           {% for form in formset %}
@@ -45,4 +45,5 @@
       </div>
     </form>
   </div>
+  <script src="{% static 'js/inventory/set_selection.js' %}"></script>
 {% endblock content %}

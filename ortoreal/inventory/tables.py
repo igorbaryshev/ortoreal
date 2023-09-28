@@ -12,14 +12,8 @@ import django_tables2 as tables
 
 from clients.models import Job
 from clients.tables import ItemsColumn
-from inventory.models import (
-    InventoryLog,
-    Item,
-    Order,
-    Part,
-    Vendor,
-    VendorOrder,
-)
+from core.utils import get_date_display
+from inventory.models import InventoryLog, Item, Order, Part, Vendor
 from inventory.utils import get_dec_display, wrap_in_color
 from users.models import User
 
@@ -198,16 +192,20 @@ class VendorOrderTable(tables.Table):
 
 class OrderTable(VendorOrderTable):
     vendor = tables.Column("Поставщик")
+    invoice_number = tables.TemplateColumn(
+        verbose_name="Номер счёта",
+        template_name="inventory/includes/invoice_number_input.html",
+    )
 
     class Meta(VendorOrderTable.Meta):
-        sequence = (
+        sequence = [
             "row",
             "vendor_code",
             "quantity",
             "vendor",
             "price",
             "price_mul",
-        )
+        ]
 
 
 class OrdersTable(tables.Table):
@@ -217,9 +215,14 @@ class OrdersTable(tables.Table):
 
     parts = tables.Column("Комплектующие", empty_values=())
     total_price = tables.Column("Итоговая цена, руб.", empty_values=())
+    reception = tables.TemplateColumn(
+        verbose_name="Приход",
+        #'<div class="btn btn-primary">{{ record.vendor }}</div>',
+        template_name="inventory/includes/reception_button.html",
+    )
 
     def render_date(self, record, value):
-        if record.current:
+        if record.is_current:
             value = "Текущий"
         return value
 
@@ -273,18 +276,47 @@ class OrdersTable(tables.Table):
     class Meta:
         orderable = False
         model = Order
-        sequence = (
-            "id",
+        sequence = [
+            "vendor",
             "date",
             "parts",
+            "invoice_number",
             "total_price",
-        )
-        exclude = ("current",)
+            "reception",
+        ]
+        exclude = ["id", "is_current"]
         row_attrs = {
             "data-href": lambda record: record.get_absolute_url,
             "style": "cursor: pointer;",
         }
         template_name = "django_tables2/bootstrap5-responsive.html"
+
+
+class CurrentOrderTable(tables.Table):
+    """
+    Таблица списка ещё не заказанных комплектующих.
+    """
+
+    count_units = tables.Column("Комплектующие", empty_values=())
+
+    class Meta:
+        model = Part
+        orderable = False
+        sequence = [
+            "vendor_code",
+            "name",
+            "vendor",
+            "item_count",
+        ]
+        exclude = [
+            "id",
+            "manufacturer",
+            "units",
+            "price",
+            "note",
+            "minimum_remainder",
+            "item_count",
+        ]
 
 
 class VendorOrdersTable(tables.Table):
@@ -294,14 +326,18 @@ class VendorOrdersTable(tables.Table):
 
     parts = tables.Column("Комплектующие", empty_values=())
     total_price = tables.Column("Итоговая цена, руб.", empty_values=())
+    reception = tables.TemplateColumn(
+        "Приход",
+        template_name="inventory/includes/reception_button.html",
+        orderable=False,
+    )
 
     def render_parts(self, record):
         PER_LINE = 6
         SEPARATOR = "<br/>"
 
         parts = (
-            record.order.items.filter(part__vendor=record.vendor)
-            .values("part")
+            record.items.values("part")
             .annotate(
                 item_count=Count("id"),
                 items_filled=Count(Case(When(arrived=True, then=1))),
@@ -346,16 +382,16 @@ class VendorOrdersTable(tables.Table):
 
     class Meta:
         orderable = False
-        model = VendorOrder
-        sequence = (
+        model = Order
+        sequence = [
             "id",
             "date",
             "vendor",
             "invoice_number",
             "parts",
             "total_price",
-        )
-        exclude = ("current",)
+        ]
+        exclude = ["is_current"]
         # row_attrs = {
         #     "data-href": lambda record: record.get_absolute_url,
         #     "style": "cursor: pointer;",
@@ -555,7 +591,7 @@ class ProsthetistItemsTable(tables.Table):
         column = []
         for item in value.order_by("date"):
             part = item.item.part
-            date = timezone.localtime(item.date).strftime("%d-%b-%Y %H:%M")
+            date = get_date_display(item.date)
             string = f"<br>({date}) {part}</br>"
             column.append(string)
         # locale.setlocale(locale.LC_ALL, "")

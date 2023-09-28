@@ -9,6 +9,12 @@
 {% endblock static %}
 {% block content %}
   {% load django_tables2 %}
-  <div class="card-body">{% render_table table %}</div>
+  <div class="card-body">
+    <div class="row">
+      <a class="btn btn-secondary col" href="{% url 'clients:add_client' %}">Добавить обращение/клиента</a>
+      <a class="btn btn-primary col" href="{% url 'clients:add_job' %}">Добавить работу</a>
+    </div>
+    {% render_table table %}
+  </div>
   <script src="{% static 'js/table_row_link.js' %}"></script>
 {% endblock content %}

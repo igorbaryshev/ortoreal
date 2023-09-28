@@ -367,8 +367,8 @@ def remove_reserve(part, job, quantity):
         Item.objects.filter(job=None, reserved=job, part=part)
         .annotate(
             new_old_warehouse=Case(
-                When(order__current=True, then=1),
-                When(order__current=False, then=2),
+                When(order__is_current=True, then=1),
+                When(order__is_current=False, then=2),
                 default=3,
             )
         )
@@ -382,7 +382,7 @@ def remove_reserve(part, job, quantity):
     batch = []
     for item in reserved_items:
         # Если не из свободного заказа и в текущем заказе
-        if not item.free_order and item.order and item.order.current:
+        if not item.free_order and item.order and item.order.is_current:
             item.delete()
         else:
             item.reserved = None
@@ -426,7 +426,7 @@ def move_reserves_to_free_order():
     """
     Переместить резервы из обычных заказов в свободный, если есть незанятые.
     """
-    current_order = Order.objects.get(current=True)
+    current_order = Order.objects.get(is_current=True)
     unreserved_free_order = current_order.items.filter(
         reserved__isnull=True, free_order=True
     )
@@ -435,12 +435,12 @@ def move_reserves_to_free_order():
     )
     parts_free_order = Part.objects.filter(
         items__free_order=True,
-        items__order__current=True,
+        items__order__is_current=True,
         items__reserved__isnull=True,
     ).annotate(item_count=Count("items"))
     parts_regular_order = Part.objects.filter(
         items__free_order=False,
-        items__order__current=True,
+        items__order__is_current=True,
         items__reserved__isnull=False,
     ).annotate(item_count=Count("items"))
     batch_update = []
@@ -472,7 +472,7 @@ def remove_excess_from_current_order():
     # незарезервированные в текущем заказе, заказанные обычным способом
     unreserved_current = Item.objects.filter(
         reserved__isnull=True,
-        order__current=True,
+        order__is_current=True,
         arrived=False,
         free_order=False,
     )
@@ -482,7 +482,7 @@ def remove_excess_from_current_order():
     ).annotate(item_count=Count("items"))
     parts_unreserved_current = Part.objects.filter(
         items__reserved__isnull=True,
-        items__order__current=True,
+        items__order__is_current=True,
         items__free_order=False,
     )
     batch_delete = []

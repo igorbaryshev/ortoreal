@@ -4,13 +4,11 @@
   Заказы
 {% endblock title %}
 {% block static %}
-  <link rel="stylesheet" href="{% static "css/table.css" %}"/>
-  <link rel="stylesheet" href="{% static "css/item_pill.css" %}"/>
+  <link rel="stylesheet" href="{% static "css/table.css" %}" />
+  <link rel="stylesheet" href="{% static "css/item_pill.css" %}" />
   <script src="{% static 'js/table_row_link.js' %}"></script>
 {% endblock static %}
 {% block content %}
   {% load django_tables2 %}
-  <div class="card-body">
-    {% render_table table %}
-  </div>
+  <div class="card-body">{% render_table orders_table %}</div>
 {% endblock content %}

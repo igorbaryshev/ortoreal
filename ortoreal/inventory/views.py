@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db import transaction
 from django.db.models import (
     Case,
     CharField,
@@ -22,6 +23,7 @@ from django.db.models import (
 from django.db.models.functions import Concat, RowNumber
 from django.http.response import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 
@@ -37,16 +39,19 @@ from inventory.forms import (
     FreeOrderFormSet,
     InventoryAddForm,
     InventoryTakeForm,
+    InvoiceNumberFormSet,
     ItemReturnFormSet,
     ItemTakeFormSet,
     JobSelectForm,
     PartAddFormSet,
     PickPartsFormSet,
     ProsthesisSelectForm,
+    ReceptionForm,
     ReceptionItemFormSet,
 )
-from inventory.models import InventoryLog, Item, Order, Part, VendorOrder
+from inventory.models import InventoryLog, Item, Order, Part
 from inventory.tables import (
+    CurrentOrderTable,
     InventoryLogsTable,
     JobSetsTable,
     MarginTable,
@@ -156,89 +161,107 @@ class ReceptionView(LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         form = InventoryAddForm()
-        formset = ReceptionItemFormSet()
+        form = ReceptionForm()
+        form.fields[
+            "invoice_number"
+        ].choices = self.get_invoice_number_choices()
+        # formset = ReceptionItemFormSet()
         context = {
             "form": form,
-            "formset": formset,
+            # "formset": formset,
         }
         return render(request, "inventory/reception.html", context)
 
     def post(self, request, *args, **kwargs):
-        form = InventoryAddForm(request.POST)
+        form = ReceptionForm(request.POST)
+        form.fields[
+            "invoice_number"
+        ].choices = self.get_invoice_number_choices()
         formset = ReceptionItemFormSet(request.POST)
-        if form.is_valid() and formset.is_valid() and formset.forms:
-            date = form.cleaned_data["date"]
-            operation = InventoryLog.Operation.RECEPTION
-            comment = form.cleaned_data["comment"]
-            # фильтр: не назначен склад, не в текущем заказе,
-            # сортировка по дате резерва, без резерва - в последнюю очередь
-            ordered_items = Item.objects.filter(
-                arrived=False, order__current=False
-            ).order_by(F("reserved__date").asc(nulls_last=True), F("id").asc())
-            batch_update_items = []
-            for fs_form in formset:
-                print(fs_form.cleaned_data["quantity"])
-                quantity = fs_form.cleaned_data["quantity"]
-                # Если кол-во не указано или <= 0, то пропустить
-                if quantity is None or quantity <= 0:
-                    continue
-                log = InventoryLog(
-                    operation=operation,
-                    comment=comment,
+        if form.is_valid():
+            if formset.is_valid() and formset.forms:
+                date = form.cleaned_data["date"]
+                operation = InventoryLog.Operation.RECEPTION
+                comment = form.cleaned_data["comment"]
+                # фильтр: не назначен склад, не в текущем заказе,
+                # сортировка по дате резерва, без резерва - в последнюю очередь
+                ordered_items = Item.objects.filter(
+                    arrived=False, order__is_current=False
+                ).order_by(
+                    F("reserved__date").asc(nulls_last=True), F("id").asc()
                 )
-                log.save()
-                log = InventoryLog.objects.get(id=log.id)
-                part = fs_form.cleaned_data["part"]
-                price = fs_form.cleaned_data["price"]
-                vendor2 = fs_form.cleaned_data["vendor2"]
-                matching_ordered = ordered_items.filter(part=part)
-                # Проверяем, есть ли пришедшие в заказанных,
-                # добавляем склад и заменяем дату на дату прихода
-                if matching_ordered.exists():
-                    match_quantity = len(matching_ordered)
-                    if quantity > match_quantity:
-                        quantity -= match_quantity
-                    else:
-                        match_quantity = quantity
-                        # обнуляем кол-во, чтобы не создавать новые записи
-                        quantity = 0
-                    for item in matching_ordered[:match_quantity]:
-                        item.date = date
-                        item.arrived = True
-                        item.vendor2 = vendor2
-                        batch_update_items.append(item)
-                # Если в приходе больше, чем заказанных,
-                # создаём записи для остальных
-                if quantity:
-                    batch_create_items = [
-                        Item(
-                            part=part,
-                            arrived=True,
-                            vendor2=vendor2,
-                            price=price,
-                            date=date,
-                        )
-                    ] * quantity
-                    Item.objects.bulk_create(batch_create_items)
-                # Берём только что созданные записи для добавления в историю
-                created_items = list(
-                    Item.objects.filter(
-                        date=date,
-                        part=part,
-                        logs=None,
-                        order=None,
-                        arrived=True,
+                batch_update_items = []
+                for fs_form in formset:
+                    print(fs_form.cleaned_data["quantity"])
+                    quantity = fs_form.cleaned_data["quantity"]
+                    # Если кол-во не указано или <= 0, то пропустить
+                    if quantity is None or quantity <= 0:
+                        continue
+                    log = InventoryLog(
+                        operation=operation,
+                        comment=comment,
                     )
+                    log.save()
+                    log = InventoryLog.objects.get(id=log.id)
+                    part = fs_form.cleaned_data["part"]
+                    price = fs_form.cleaned_data["price"]
+                    vendor2 = fs_form.cleaned_data["vendor2"]
+                    matching_ordered = ordered_items.filter(part=part)
+                    # Проверяем, есть ли пришедшие в заказанных,
+                    # добавляем склад и заменяем дату на дату прихода
+                    if matching_ordered.exists():
+                        match_quantity = len(matching_ordered)
+                        if quantity > match_quantity:
+                            quantity -= match_quantity
+                        else:
+                            match_quantity = quantity
+                            # обнуляем кол-во, чтобы не создавать новые записи
+                            quantity = 0
+                        for item in matching_ordered[:match_quantity]:
+                            item.date = date
+                            item.arrived = True
+                            item.vendor2 = vendor2
+                            batch_update_items.append(item)
+                    # Если в приходе больше, чем заказанных,
+                    # создаём записи для остальных
+                    if quantity:
+                        batch_create_items = [
+                            Item(
+                                part=part,
+                                arrived=True,
+                                vendor2=vendor2,
+                                price=price,
+                                date=date,
+                            )
+                        ] * quantity
+                        Item.objects.bulk_create(batch_create_items)
+                    # Берём только что созданные записи для добавления в историю
+                    created_items = list(
+                        Item.objects.filter(
+                            date=date,
+                            part=part,
+                            logs=None,
+                            order=None,
+                            arrived=True,
+                        )
+                    )
+                    # Объединяем созданные и обновляемые записи для лога
+                    log_items = created_items + batch_update_items
+                    log.items.set(log_items)
+                    log.save()
+                Item.objects.bulk_update(
+                    batch_update_items, ["date", "arrived", "price"]
                 )
-                # Объединяем созданные и обновляемые записи для лога
-                log_items = created_items + batch_update_items
-                log.items.set(log_items)
-                log.save()
-            Item.objects.bulk_update(
-                batch_update_items, ["date", "arrived", "price"]
-            )
 
-            return redirect("inventory:logs")
+                return redirect("inventory:logs")
+
+            else:
+                invoice_number = form.cleaned_data["invoice_number"]
+                print(invoice_number)
+                queryset = self.get_queryset(invoice_number)
+                formset = ReceptionItemFormSet(
+                    initial=queryset.values("part", "quantity")
+                )
 
         context = {
             "form": form,
@@ -246,6 +269,32 @@ class ReceptionView(LoginRequiredMixin, View):
         }
 
         return render(request, "inventory/reception.html", context)
+
+    def get_queryset(self, invoice_number):
+        queryset = (
+            Part.objects.filter(items__invoice_number=invoice_number)
+            .annotate(
+                quantity=Count(
+                    "items", filter=Q(items__invoice_number=invoice_number)
+                ),
+                part=F("pk"),
+            )
+            .order_by("vendor_code")
+        )
+        return queryset
+
+    def get_invoice_number_choices(self):
+        choices = [("-", "-")] + [
+            (number, number)
+            for number in Item.objects.filter(
+                order__is_current=False,
+                arrived=False,
+                invoice_number__isnull=False,
+            )
+            .values_list("invoice_number", flat=True)
+            .distinct()
+        ]
+        return choices
 
 
 class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -681,7 +730,7 @@ class FreeOrderAddView(LoginRequiredMixin, UserPassesTestMixin, View):
     def post(self, request, *args, **kwargs):
         formset = FreeOrderFormSet(request.POST)
         if formset.forms and formset.is_valid():
-            order = get_object_or_404(Order, current=True)
+            # order = get_object_or_404(Order, is_current=True)
             batch_create = []
             for fs_form in formset:
                 quantity = fs_form.cleaned_data["quantity"]
@@ -697,7 +746,12 @@ class FreeOrderAddView(LoginRequiredMixin, UserPassesTestMixin, View):
                     price = Decimal("0.00")
                 print(price)
                 batch_create += [
-                    Item(part=part, order=order, free_order=True, price=price)
+                    Item(
+                        part=part,
+                        # order=order,
+                        free_order=True,
+                        price=price,
+                    )
                 ] * quantity
 
             Item.objects.bulk_create(batch_create)
@@ -731,7 +785,7 @@ class FreeOrderEditView(LoginRequiredMixin, UserPassesTestMixin, View):
                 Part.objects.annotate(
                     quantity=Count(
                         "items",
-                        filter=Q(items__order__current=True)
+                        filter=Q(items__order__is_current=True)
                         & Q(items__free_order=True),
                     )
                 )
@@ -742,7 +796,7 @@ class FreeOrderEditView(LoginRequiredMixin, UserPassesTestMixin, View):
             parts = []
             batch_create = []
             batch_update = []
-            order = get_object_or_404(Order, current=True)
+            order = get_object_or_404(Order, is_current=True)
             for form in formset:
                 part = form.cleaned_data["part"]
                 if part.id in parts:
@@ -796,7 +850,7 @@ class FreeOrderEditView(LoginRequiredMixin, UserPassesTestMixin, View):
         """
         batch_update = []
         items = Item.objects.filter(
-            part_id=part_id, order__current=True, free_order=True
+            part_id=part_id, order__is_current=True, free_order=True
         ).order_by("reserved")
         if quantity is not None:
             items = items[:quantity]
@@ -823,7 +877,7 @@ class FreeOrderEditView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get_initial(self):
         initial = (
-            Item.objects.filter(order__current=True, free_order=True)
+            Item.objects.filter(order__is_current=True, free_order=True)
             .values("part")
             .annotate(quantity=Count("part"))
             .order_by("part__vendor_code")
@@ -882,15 +936,14 @@ class OrderView(
 
     @property
     def is_current(self):
-        if self.kwargs.get("pk"):
+        if self.kwargs.get("pk") is not None:
             return False
         return True
 
     def get_order(self):
         if self.is_current:
-            return get_object_or_404(Order, current=True)
+            return Order.get_current()
         pk = self.kwargs.get("pk")
-        print(pk)
         return get_object_or_404(Order, pk=pk)
 
     # TODO
@@ -898,14 +951,47 @@ class OrderView(
     #    check_minimum_remainder()
     #    return super().get(request)
 
-    def post(self, request):
+    def post(self, request, pk=None):
+        current_order = Order.get_current()
+
         if self.is_current:
-            order = get_object_or_404(Order, current=True)
-            order.current = False
-            order.date = timezone.now()
-            order.save()
-            Order.objects.create()
-            return redirect("inventory:order_by_id", pk=order.pk)
+            vendor_items = defaultdict(list)
+
+            for item in current_order.items.all():
+                vendor_items[item.part.vendor].append(item)
+
+            with transaction.atomic():
+                for vendor, items in vendor_items.items():
+                    order = Order.objects.create(vendor=vendor)
+                    for item in items:
+                        item.order = order
+                    Item.objects.bulk_update(items, ["order"])
+
+            return redirect("inventory:orders")
+
+        # order = self.get_order()
+        # with transaction.atomic():
+        #     Item.objects.filter(order=order).update(order=current_order)
+        #     order.delete()
+
+        data = dict(request.POST)
+        data = {
+            "form-TOTAL_FORMS": len(self.get_queryset()),
+            "form-INITIAL_FORMS": 0,
+        } | data
+        formset = InvoiceNumberFormSet(data)
+        if formset.is_valid():
+            order = get_object_or_404(Order, pk=pk)
+            for form in formset:
+                invoice_number = form.cleaned_data["invoice_number"][2:-2]
+                print(invoice_number)
+                if invoice_number:
+                    part_id = int(form.cleaned_data["part_id"][2:-2])
+                    print(part_id)
+                    order.items.filter(part_id=part_id).update(
+                        invoice_number=invoice_number
+                    )
+        return redirect("inventory:order_by_id", pk=pk)
 
     def get_queryset(self):
         order = self.get_order()
@@ -921,6 +1007,8 @@ class OrderView(
                 quantity=Count("part"),
                 vendor=F("part__vendor__name"),
                 price_mul=F("quantity") * F("price"),
+                invoice_number=F("invoice_number"),
+                part_id=F("part_id"),
             )
             .order_by("vendor_code")
         )
@@ -930,12 +1018,35 @@ class OrderView(
         context = super().get_context_data(**kwargs)
         context["current"] = self.is_current
         order = self.get_order()
-        if order.current:
+        if order.is_current:
             context["title"] = "Текущий заказ c"
         else:
             context["title"] = "Заказ от"
         context["order"] = order
         return context
+
+
+class OrderCancelView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View отмены заказа.
+    """
+
+    def test_func(self) -> bool:
+        if self.request.user.is_staff or self.request.user.is_manager:
+            return True
+        return False
+
+    def get(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+
+        if order.is_current:
+            return redirect("inventory:order")
+
+        current_order = Order.get_current()
+        with transaction.atomic():
+            Item.objects.filter(order=order).update(order=current_order)
+            order.delete()
+        return redirect("inventory:orders")
 
 
 class OrdersView(
@@ -958,14 +1069,13 @@ class OrdersView(
         return False
 
     def get_queryset(self) -> QuerySet[Any]:
-        return Order.objects.order_by("-id")
+        return Order.objects.order_by("-is_current", "-date")
 
 
 class VendorOrdersView(
     LoginRequiredMixin,
     UserPassesTestMixin,
-    ExportMixin,
-    tables.SingleTableView,
+    View,
 ):
     """
     View списка всех заказов поставщикам.
@@ -981,7 +1091,17 @@ class VendorOrdersView(
         return False
 
     def get_queryset(self) -> QuerySet[Any]:
-        return VendorOrder.objects.order_by("-id").prefetch_related("order")
+        qs = Order.objects.order_by("-is_current", "-date")
+        return qs
+
+    def get(self, request):
+        orders_qs = self.get_queryset()
+        orders_table = VendorOrdersTable(orders_qs)
+        context = {
+            "orders_table": orders_table,
+        }
+
+        return render(request, "inventory/vendororder_list.html", context)
 
 
 def export_orders(request, pk=None):
@@ -991,7 +1111,7 @@ def export_orders(request, pk=None):
     if pk is not None:
         order = get_object_or_404(Order, pk=pk)
     else:
-        order = get_object_or_404(Order, current=True)
+        order = get_object_or_404(Order, is_current=True)
     vendors = (
         order.items.annotate(
             vendor_id=F("part__vendor__id"),
@@ -1204,3 +1324,103 @@ class ProsthetistItemsView(
             full_name=Concat("first_name", Value(" "), "last_name")
         )
         return qs
+
+
+class ReceptionOrderView(LoginRequiredMixin, View):
+    """
+    Приход.
+    """
+
+    def get(self, request, pk):
+        order = get_object_or_404(Order, pk)
+        form = InventoryAddForm()
+        formset = ReceptionItemFormSet()
+        context = {
+            "form": form,
+            # "formset": formset,
+        }
+        return render(request, "inventory/reception.html", context)
+
+    def post(self, request, *args, **kwargs):
+        form = InventoryAddForm(request.POST)
+        formset = ReceptionItemFormSet(request.POST)
+        if form.is_valid() and formset.is_valid() and formset.forms:
+            date = form.cleaned_data["date"]
+            operation = InventoryLog.Operation.RECEPTION
+            comment = form.cleaned_data["comment"]
+            # фильтр: не назначен склад, не в текущем заказе,
+            # сортировка по дате резерва, без резерва - в последнюю очередь
+            ordered_items = Item.objects.filter(
+                arrived=False, order__is_current=False
+            ).order_by(F("reserved__date").asc(nulls_last=True), F("id").asc())
+            batch_update_items = []
+            for fs_form in formset:
+                print(fs_form.cleaned_data["quantity"])
+                quantity = fs_form.cleaned_data["quantity"]
+                # Если кол-во не указано или <= 0, то пропустить
+                if quantity is None or quantity <= 0:
+                    continue
+                log = InventoryLog(
+                    operation=operation,
+                    comment=comment,
+                )
+                log.save()
+                log = InventoryLog.objects.get(id=log.id)
+                part = fs_form.cleaned_data["part"]
+                price = fs_form.cleaned_data["price"]
+                vendor2 = fs_form.cleaned_data["vendor2"]
+                matching_ordered = ordered_items.filter(part=part)
+                # Проверяем, есть ли пришедшие в заказанных,
+                # добавляем склад и заменяем дату на дату прихода
+                if matching_ordered.exists():
+                    match_quantity = len(matching_ordered)
+                    if quantity > match_quantity:
+                        quantity -= match_quantity
+                    else:
+                        match_quantity = quantity
+                        # обнуляем кол-во, чтобы не создавать новые записи
+                        quantity = 0
+                    for item in matching_ordered[:match_quantity]:
+                        item.date = date
+                        item.arrived = True
+                        item.vendor2 = vendor2
+                        batch_update_items.append(item)
+                # Если в приходе больше, чем заказанных,
+                # создаём записи для остальных
+                if quantity:
+                    batch_create_items = [
+                        Item(
+                            part=part,
+                            arrived=True,
+                            vendor2=vendor2,
+                            price=price,
+                            date=date,
+                        )
+                    ] * quantity
+                    Item.objects.bulk_create(batch_create_items)
+                # Берём только что созданные записи для добавления в историю
+                created_items = list(
+                    Item.objects.filter(
+                        date=date,
+                        part=part,
+                        logs=None,
+                        order=None,
+                        arrived=True,
+                    )
+                )
+                # Объединяем созданные и обновляемые записи для лога
+                log_items = created_items + batch_update_items
+                log.items.set(log_items)
+                log.save()
+            Item.objects.bulk_update(
+                batch_update_items, ["date", "arrived", "price"]
+            )
+
+            return redirect("inventory:logs")
+
+        context = {
+            "form": form,
+            "formset": formset,
+        }
+
+        return render(request, "inventory/reception.html", context)
