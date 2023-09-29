@@ -337,7 +337,7 @@ def create_reserve(part, job, quantity, job_dict=OrderedCounter()):
     # 4. Если так получилось, что не хватило и того, что уже в заказах,
     #    то добавляем всё в текущий заказ
     if quantity:
-        order = Order.objects.get(current=True)
+        order = Order.get_current()
         # создаём партию из недостающих комплектующих
         batch_create = [Item(part=part, reserved=job, order=order)] * quantity
         # добавляем в неё недостающие комплектующие более новых работ
@@ -409,7 +409,7 @@ def check_minimum_remainder():
         .annotate(item_count=Count("items"))
     )
 
-    order = Order.objects.get(current=True)
+    order = Order.get_current()
     batch_create = []
     for part in remaining_parts:
         if part.minimum_remainder > part.item_count:
@@ -426,7 +426,7 @@ def move_reserves_to_free_order():
     """
     Переместить резервы из обычных заказов в свободный, если есть незанятые.
     """
-    current_order = Order.objects.get(is_current=True)
+    current_order = Order.get_current()
     unreserved_free_order = current_order.items.filter(
         reserved__isnull=True, free_order=True
     )

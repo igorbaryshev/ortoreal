@@ -104,6 +104,9 @@ class ReceptionItemForm(ItemForm):
     # )
     # part = forms.ModelChoiceField()
     vendor2 = forms.BooleanField(label="Поставщик 2", required=False)
+    quantity = forms.IntegerField(
+        label="Количество", required=True, min_value=0, initial=0
+    )
     price = forms.DecimalField(
         label="Цена, руб.",
         required=True,
@@ -380,9 +383,8 @@ class ReceptionForm(forms.ModelForm):
         ),
     )
 
-    class Meta:
-        model = InventoryLog
-        fields = ["invoice_number", "comment"]
+    class Meta(InventoryLogFormMeta):
+        fields = ["invoice_number", "comment", "date"]
 
 
 class InvoiceNumberForm(forms.Form):

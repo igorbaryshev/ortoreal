@@ -165,10 +165,10 @@ class ReceptionView(LoginRequiredMixin, View):
         form.fields[
             "invoice_number"
         ].choices = self.get_invoice_number_choices()
-        # formset = ReceptionItemFormSet()
+        formset = ReceptionItemFormSet()
         context = {
             "form": form,
-            # "formset": formset,
+            "formset": formset,
         }
         return render(request, "inventory/reception.html", context)
 
@@ -179,6 +179,7 @@ class ReceptionView(LoginRequiredMixin, View):
         ].choices = self.get_invoice_number_choices()
         formset = ReceptionItemFormSet(request.POST)
         if form.is_valid():
+            print(form.cleaned_data["invoice_number"])
             if formset.is_valid() and formset.forms:
                 date = form.cleaned_data["date"]
                 operation = InventoryLog.Operation.RECEPTION

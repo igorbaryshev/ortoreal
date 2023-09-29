@@ -77,7 +77,7 @@ class JobForm(forms.ModelForm):
         ]
 
 
-class JobClientForm(forms.ModelForm):
+class JobClientForm(JobForm):
     class Meta:
         model = Job
         fields = [
