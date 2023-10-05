@@ -11,20 +11,70 @@ from bootstrap_datepicker_plus.widgets import (
     DateTimePickerInput,
 )
 from django_filters import FilterSet, widgets
+from django_select2 import forms as s2forms
 
 from clients.models import Job
 from inventory.forms import DatePicker
-from inventory.models import Part
+from inventory.models import InventoryLog, Part
 
 
 def get_current_date():
-    return timezone.now().date()
+    return timezone.localtime().strftime("%Y-%m-%d %H:%M")
 
 
 def get_first_job_date():
     if not Job.objects.exists():
         return get_current_date()
-    return Job.objects.earliest("date").date.strftime("%Y-%m-%d")
+    return Job.objects.earliest("date").date.strftime("%Y-%m-%d %H:%M")
+
+
+class JobWidget(s2forms.ModelSelect2Widget):
+    search_fields = [
+        "client__first_name__icontains",
+        "client__last_name__icontains",
+    ]
+
+
+class InventoryLogFilter(FilterSet):
+    job = filters.CharFilter(
+        label="Работа",
+        field_name="job",
+        lookup_expr="client__last_name__istartswith",
+    )
+    vendor_code = filters.CharFilter(
+        label="Артикул", field_name="vendor_code", lookup_expr="istartswith"
+    )
+    part_name = filters.CharFilter(
+        label="Название компл.",
+        field_name="part_name",
+        lookup_expr="icontains",
+    )
+    invoice_number = filters.CharFilter(
+        label="Номер счёта",
+        field_name="invoice",
+        lookup_expr="number__istartswith",
+    )
+    invoice_vendor = filters.CharFilter(
+        label="Поставщик",
+        field_name="invoice",
+        lookup_expr="order__vendor__name__istartswith",
+    )
+    start_date = filters.DateTimeFilter(
+        label="От",
+        field_name="date",
+        lookup_expr=("gte"),
+        widget=DatePicker(attrs={"value": get_first_job_date}),
+    )
+    end_date = filters.DateTimeFilter(
+        label="До",
+        field_name="date",
+        lookup_expr=("lte"),
+        widget=DatePicker(attrs={"value": get_current_date}),
+    )
+
+    class Meta:
+        model = InventoryLog
+        fields = ["operation", "job", "prosthetist"]
 
 
 class PartFilter(FilterSet):
@@ -110,4 +160,4 @@ class MarginFilter(FilterSet):
 
     class Meta:
         model = Job
-        fields = ("start_date", "end_date", "prosthetist")
+        fields = ["start_date", "end_date", "prosthetist"]

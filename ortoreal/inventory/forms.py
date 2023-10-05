@@ -4,7 +4,14 @@ from django import forms
 from django.utils import timezone
 
 from clients.models import Client, Job
-from inventory.models import InventoryLog, Item, Order, Part, Prosthesis
+from inventory.models import (
+    InventoryLog,
+    Invoice,
+    Item,
+    Order,
+    Part,
+    Prosthesis,
+)
 
 
 class DatePicker(forms.DateInput):
@@ -12,7 +19,7 @@ class DatePicker(forms.DateInput):
     Выбор даты.
     """
 
-    input_type = "date"
+    input_type = "datetime-local"
 
 
 class InventoryLogFormMeta:
@@ -22,7 +29,9 @@ class InventoryLogFormMeta:
 
     model = InventoryLog
     widgets = {
-        "date": DatePicker(attrs={"value": timezone.now}, format="%Y-%m-%d"),
+        "date": DatePicker(
+            attrs={"value": timezone.now}, format="%Y-%m-%d %H:%M"
+        ),
         "comment": forms.Textarea(attrs={"cols": 80, "rows": 2}),
     }
 
@@ -374,7 +383,10 @@ class ReceptionForm(forms.ModelForm):
     #     ).distinct(),
     # )
 
-    invoice_number = forms.ChoiceField(
+    invoice = forms.ModelChoiceField(
+        queryset=Invoice.objects.filter(
+            order__is_current=False, items__arrived=False
+        ).distinct(),
         label="Номер счёта",
         widget=forms.Select(
             attrs={
@@ -384,7 +396,7 @@ class ReceptionForm(forms.ModelForm):
     )
 
     class Meta(InventoryLogFormMeta):
-        fields = ["invoice_number", "comment", "date"]
+        fields = ["invoice", "comment", "date"]
 
 
 class InvoiceNumberForm(forms.Form):

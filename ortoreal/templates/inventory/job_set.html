@@ -24,33 +24,33 @@
       {% endfor %}
       {{ formset.management_form }}
       <div class="table-responsive">
-        <link rel="stylesheet" href="{% static "css/form_table.css" %}"/>
-        <link rel="stylesheet" href="{% static "css/take_table.css" %}"/>
+        <link rel="stylesheet" href="{% static "css/form_table.css" %}" />
+        <link rel="stylesheet" href="{% static "css/take_table.css" %}" />
         <table class="table table-bordered align-middle">
           {% include "includes/form_table_head.html" with form=formset.0 %}
           {% for form in formset %}
-          <tr class="input-row text-center">
-            {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
-            {% for field in form.visible_fields %}
-              <td class="item-form {% if field.errors %}alert-td{% endif %}"
-                  title="{% for error in field.errors %}{{ error }}{% if not forloop.last %}&#10;&#013;{% endif %}{% endfor %}">
+            <tr class="input-row text-center">
+              {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+              {% for field in form.visible_fields %}
+                <td class="item-form {% if field.errors %}alert-td{% endif %}"
+                    title="{% for error in field.errors %}{{ error }}{% if not forloop.last %}&#10;&#013;{% endif %}{% endfor %}">
                   {{ field }}
-              </td>
-            {% endfor %}
-          </tr>
+                </td>
+              {% endfor %}
+            </tr>
           {% endfor %}
         </table>
         {% if formset.forms %}
-        <div class="button-row position-relative">
-          <button id="add-form" type="button" class="btn btn-secondary">+</button>
-          <button id="remove-form" type="button" class="btn btn-danger">-</button>
-          <button id="submit-form"
-                  type="submit"
-                  class="btn btn-primary position-absolute end-0">Сохранить комплектацию</button>
-        </div>
+          <div class="button-row position-relative">
+            <button id="add-form" type="button" class="btn btn-secondary">+</button>
+            <button id="remove-form" type="button" class="btn btn-danger">-</button>
+            <button id="submit-form"
+                    type="submit"
+                    class="btn btn-primary position-absolute end-0">Сохранить комплектацию</button>
+          </div>
         {% endif %}
       </div>
     </form>
   </div>
-  <script src="{% static 'js/inventory/free_order.js' %}"></script>
+  <script src="{% static 'js/inventory/set_selection.js' %}"></script>
 {% endblock content %}

@@ -14,8 +14,8 @@ urlpatterns = [
     path("reception/", views.ReceptionView.as_view(), name="reception"),
     path(
         "reception/<int:pk>/",
-        views.ReceptionOrderView.as_view(),
-        name="reception_order",
+        views.ReceptionInvoiceView.as_view(),
+        name="reception_invoice",
     ),
     path("take/", views.TakeItemsView.as_view(), name="take_items"),
     path("return/", views.ReturnItemsView.as_view(), name="return_items"),
@@ -45,10 +45,10 @@ urlpatterns = [
         "orders/<int:pk>/download/", views.export_orders, name="export_orders"
     ),
     path("orders/add/", views.FreeOrderAddView.as_view(), name="free_order"),
-    path("logs/", views.InventoryLogsListView.as_view(), name="logs"),
+    path("logs/", views.InventoryLogListView.as_view(), name="logs"),
     path(
         "logs/<int:pk>/",
-        views.InventoryLogsDetailView.as_view(),
+        views.InventoryLogDetailView.as_view(),
         name="log_items",
     ),
     path("pick_parts/", views.PickPartsView.as_view(), name="pick_parts"),

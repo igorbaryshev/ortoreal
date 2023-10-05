@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "django_filters",
     "bootstrap_datepicker_plus",
     "colorfield",
+    "django_select2",
 ]
 
 MIDDLEWARE = [
@@ -165,11 +166,11 @@ AUTH_USER_MODEL = "users.User"
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.memcached.PyMemcacheCache",
-        "LOCATION": "127.0.0.1:11211/1",
+        "LOCATION": "127.0.0.1:11211",
     },
     "select2": {
         "BACKEND": "django.core.cache.backends.memcached.PyMemcacheCache",
-        "LOCATION": "127.0.0.1:11211/2",
+        "LOCATION": "127.0.0.1:11211",
     },
 }
 

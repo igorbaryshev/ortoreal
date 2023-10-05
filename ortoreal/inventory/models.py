@@ -45,9 +45,6 @@ class Order(models.Model):
         Vendor, verbose_name="поставщик", on_delete=models.CASCADE, null=True
     )
     date = models.DateTimeField("дата", default=timezone.now, null=True)
-    invoice_number = models.CharField(
-        "номер счёта", max_length=100, blank=True, null=True
-    )
     is_current = models.BooleanField("текущий", default=False)
 
     @classmethod
@@ -66,10 +63,7 @@ class Order(models.Model):
             return "текущий"
         locale.setlocale(locale.LC_MONETARY, "ru_RU.UTF-8")
         date = get_date_display(self.date)
-        invoice_number = ""
-        if self.invoice_number is not None:
-            invoice_number = self.invoice_number + " "
-        return f"{self.vendor} {invoice_number}({date})"
+        return f"{self.vendor} ({date})"
 
     def save(self, *args, **kwargs):
         if not self.is_current:
@@ -84,6 +78,21 @@ class Order(models.Model):
         if self.is_current:
             url = reverse("inventory:order")
         return url
+
+
+class Invoice(models.Model):
+    number = models.CharField("номер", max_length=100)
+    order = models.ForeignKey(
+        Order, verbose_name="заказ", on_delete=models.CASCADE
+    )
+    date = models.DateTimeField("дата", default=timezone.now)
+
+    class Meta:
+        verbose_name = "счёт"
+        verbose_name = "счета"
+
+    def __str__(self) -> str:
+        return f"{self.number} {self.order.vendor}"
 
 
 class Part(models.Model):
@@ -154,7 +163,7 @@ class Item(models.Model):
         blank=False,
         null=False,
     )
-    date = models.DateField("Дата", default=timezone.now)
+    date = models.DateTimeField("Дата", default=timezone.now)
     arrived = models.BooleanField("Пришло", default=False)
     vendor2 = models.BooleanField("Поставщик 2", default=False)
     job = models.ForeignKey(
@@ -182,6 +191,14 @@ class Item(models.Model):
         related_name="items",
         default=Order.get_current,
     )
+    invoice = models.ForeignKey(
+        Invoice,
+        verbose_name="счёт",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="items",
+    )
     price = models.DecimalField(
         "цена, руб.", max_digits=11, decimal_places=2, default=Decimal("0.00")
     )
@@ -189,9 +206,6 @@ class Item(models.Model):
         "Свободный заказ",
         default=False,
         help_text="Запретить удаление из заказа при пересчёте резервов.",
-    )
-    invoice_number = models.CharField(
-        "номер счёта", max_length=100, blank=True, null=True
     )
 
     @property
@@ -245,47 +259,6 @@ class ProsthetistItem(models.Model):
         return f"({date}) {self.item.part}"
 
 
-class InventoryLog(models.Model):
-    class Operation(models.TextChoices):
-        EMPTY = "", _("---выбрать---")
-        RECEPTION = "RECEPTION", _("Приход")
-        RETURN = "RETURN", _("Возврат")
-        TAKE = "TAKE", _("Расход")
-
-    operation = models.CharField(
-        "операция", max_length=32, choices=Operation.choices
-    )
-    items = models.ManyToManyField(
-        Item, verbose_name="комплектующие", related_name="logs"
-    )
-    job = models.ForeignKey(
-        Job,
-        verbose_name="клиент",
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-    )
-    prosthetist = models.ForeignKey(
-        User,
-        verbose_name="протезист",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-    )
-    date = models.DateTimeField("дата", default=timezone.now)
-    comment = models.CharField("комментарий", max_length=1024, blank=True)
-
-    class Meta:
-        verbose_name = "операция на складе"
-        verbose_name_plural = "операции на складе"
-
-    def __str__(self):
-        return f"{self.operation}"
-
-    def get_absolute_url(self):
-        return reverse("inventory:log_items", kwargs={"pk": self.pk})
-
-
 class Prosthesis(models.Model):
     class Region(models.TextChoices):
         MOSCOW = "Moscow", _("Москва")
@@ -311,3 +284,57 @@ class Prosthesis(models.Model):
 
     def __str__(self) -> str:
         return f"{self.number}"
+
+
+class InventoryLog(models.Model):
+    class Operation(models.TextChoices):
+        RECEPTION = "RECEPTION", _("Приход")
+        RETURN = "RETURN", _("Возврат")
+        TAKE = "TAKE", _("Расход")
+
+    operation = models.CharField(
+        "операция", max_length=32, choices=Operation.choices
+    )
+    items = models.ManyToManyField(
+        Item, verbose_name="комплектующие", related_name="logs"
+    )
+    job = models.ForeignKey(
+        Job,
+        verbose_name="работа",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+    )
+    prosthetist = models.ForeignKey(
+        User,
+        verbose_name="протезист",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    order = models.ForeignKey(
+        Order,
+        verbose_name="заказ",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    invoice = models.ForeignKey(
+        Invoice,
+        verbose_name="счёт",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    date = models.DateTimeField("дата", default=timezone.now)
+    comment = models.CharField("комментарий", max_length=1024, blank=True)
+
+    class Meta:
+        verbose_name = "операция на складе"
+        verbose_name_plural = "операции на складе"
+
+    def __str__(self):
+        return f"{self.operation}"
+
+    def get_absolute_url(self):
+        return reverse("inventory:log_items", kwargs={"pk": self.pk})

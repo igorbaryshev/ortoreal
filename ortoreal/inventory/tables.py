@@ -280,7 +280,6 @@ class OrdersTable(tables.Table):
             "vendor",
             "date",
             "parts",
-            "invoice_number",
             "total_price",
             "reception",
         ]
