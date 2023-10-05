@@ -61,7 +61,6 @@ class Order(models.Model):
     def __str__(self) -> str:
         if self.is_current:
             return "текущий"
-        locale.setlocale(locale.LC_MONETARY, "ru_RU.UTF-8")
         date = get_date_display(self.date)
         return f"{self.vendor} ({date})"
 

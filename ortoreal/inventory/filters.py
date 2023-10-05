@@ -25,7 +25,8 @@ def get_current_date():
 def get_first_job_date():
     if not Job.objects.exists():
         return get_current_date()
-    return Job.objects.earliest("date").date.strftime("%Y-%m-%d %H:%M")
+    date = Job.objects.earliest("date").date
+    return timezone.localtime(date).strftime("%Y-%m-%d %H:%M")
 
 
 class JobWidget(s2forms.ModelSelect2Widget):
