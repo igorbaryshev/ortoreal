@@ -29,6 +29,13 @@ def get_first_job_date():
     return timezone.localtime(date).strftime("%Y-%m-%d %H:%M")
 
 
+def get_first_log_date():
+    if not InventoryLog.objects.exists():
+        return get_current_date()
+    date = InventoryLog().objects.earliest("date").date
+    return timezone.localtime(date).strftime("%Y-%m-%d %H:%M")
+
+
 class JobWidget(s2forms.ModelSelect2Widget):
     search_fields = [
         "client__first_name__icontains",
@@ -64,7 +71,7 @@ class InventoryLogFilter(FilterSet):
         label="От",
         field_name="date",
         lookup_expr=("gte"),
-        widget=DatePicker(attrs={"value": get_first_job_date}),
+        widget=DatePicker(attrs={"value": get_first_log_date}),
     )
     end_date = filters.DateTimeFilter(
         label="До",
