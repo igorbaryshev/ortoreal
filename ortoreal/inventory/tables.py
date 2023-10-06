@@ -409,6 +409,11 @@ class InventoryLogsTable(tables.Table):
         "Количество", order_by=("item_count", "date"), attrs=TD_END
     )
 
+    def render_part_name(self, value):
+        if len(value) > 40:
+            value = " ".join(value[0:40].split()[:-1]) + "..."
+        return value
+
     class Meta:
         model = InventoryLog
         row_attrs = {

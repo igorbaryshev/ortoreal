@@ -155,6 +155,12 @@ class Client(models.Model):
             full_name += " " + self.surname
         return full_name
 
+    def get_name_with_initials(self):
+        name = f"{self.last_name} {self.first_name[0]}."
+        if self.surname:
+            name += f" {self.surname[0]}."
+        return name
+
     @property
     def full_name(self):
         return self.get_full_name()
@@ -355,7 +361,8 @@ class Job(models.Model):
         verbose_name_plural = "работы"
 
     def __str__(self) -> str:
-        return f"{self.client} ({self.status_display})"
+        client_name = self.client.get_name_with_initials()
+        return f"{self.prosthesis}, {client_name} ({self.status_display})"
 
     def save(self, *args, **kwargs):
         """
