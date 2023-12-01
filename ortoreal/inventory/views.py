@@ -45,6 +45,7 @@ from inventory.forms import (
     JobSelectForm,
     PartAddFormSet,
     PickPartsFormSet,
+    ProsthesisForm,
     ProsthesisSelectForm,
     ReceptionForm,
     ReceptionItemFormSet,
@@ -1441,4 +1442,17 @@ class ProsthesisEditView(
         return self.request.user.is_manager or self.request.user.is_prosthetist
 
     def get(self, request, pk=None):
-        pass
+        form = ProsthesisForm()
+        context = {"form": form}
+        return render(request, "inventory/prosthesis_form.html", context=context)
+
+    def post(self, request, pk=None):
+        form = ProsthesisForm(request.POST or None)
+
+        if form.is_valid():
+            form.save()
+            return redirect("inventory:prosthesis_list")
+
+        context = {"form": form}
+
+        return render(request, "inventory/prosthesis_form.html", context=context)

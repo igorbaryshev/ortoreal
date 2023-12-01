@@ -62,4 +62,14 @@ urlpatterns = [
         views.ProsthesisListView.as_view(),
         name="prosthesis_list",
     ),
+    path(
+        "prosthesis/<int:pk>/",
+        views.ProsthesisEditView.as_view(),
+        name="prosthesis_edit",
+    ),
+    path(
+        "prosthesis/add/",
+        views.ProsthesisEditView.as_view(),
+        name="prosthesis_add",
+    ),
 ]

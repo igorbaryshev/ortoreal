@@ -8,6 +8,10 @@ from inventory.models import InventoryLog, Invoice, Item, Order, Part, Prosthesi
 
 
 class DatePicker(forms.DateInput):
+    input_type = "date"
+
+
+class DateTimePicker(forms.DateInput):
     """
     Выбор даты.
     """
@@ -22,7 +26,7 @@ class InventoryLogFormMeta:
 
     model = InventoryLog
     widgets = {
-        "date": DatePicker(attrs={"value": timezone.now}, format="%Y-%m-%d %H:%M"),
+        "date": DateTimePicker(attrs={"value": timezone.now}, format="%Y-%m-%d %H:%M"),
         "comment": forms.Textarea(attrs={"cols": 80, "rows": 2}),
     }
 
@@ -394,4 +398,9 @@ InvoiceNumberFormSet = forms.formset_factory(InvoiceNumberForm, extra=0)
 
 class ProsthesisForm(forms.ModelForm):
     class Meta:
+        model = Prosthesis
         fields = "__all__"
+        widgets = {
+            "price_start_date": DatePicker(format="%Y-%m-%d"),
+            "price_end_date": DatePicker(format="%Y-%m-%d"),
+        }

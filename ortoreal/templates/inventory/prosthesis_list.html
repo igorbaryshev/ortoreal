@@ -12,6 +12,7 @@
   <div class="card-body">
     <h4>Протезы</h4>
     {% render_table table %}
+    <a class="btn btn-primary" href={% url 'inventory:prosthesis_add' %}>Добавить</a>
   </div>
   <script src="{% static 'js/table_row_link.js' %}"></script>
 {% endblock content %}
