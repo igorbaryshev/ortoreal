@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+{% load static %}
+{% block title %}
+  {{ job }}
+{% endblock title %}
+{% block content %}
+  <div class="card-body">
+    <h4>Изменить статус работы {{ job }}</h4>
+    {% include "includes/form_errors.html" %}
+    <form method="post" enctype="multipart/form-data" id="form-container">
+      {% csrf_token %}
+      {% bootstrap_form form %}
+      <div class="button-row position-relative">
+        <button id="submit-form"
+                type="submit"
+                class="btn btn-primary position-absolute end-0">Сохранить</button>
+      </div>
+    </form>
+  </div>
+{% endblock content %}

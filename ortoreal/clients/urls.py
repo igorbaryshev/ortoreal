@@ -29,4 +29,14 @@ urlpatterns = [
         views.ClientCreateView.as_view(),
         name="add_client",
     ),
+    path(
+        "jobs/<int:pk>/status/",
+        views.JobChangeStatusView.as_view(),
+        name="change_job_status",
+    ),
+    path(
+        "jobs/<int:pk>/status/<int:status_pk>/",
+        views.JobChangeStatusView.as_view(),
+        name="edit_job_status",
+    ),
 ]

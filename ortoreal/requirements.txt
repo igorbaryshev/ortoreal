@@ -7,7 +7,7 @@ colorama==0.4.6
 cssbeautifier==1.14.7
 dill==0.3.6
 distlib==0.3.6
-Django==4.2.4
+Django==4.2.7
 django-ajax==0.3.0
 django-appconf==1.0.5
 django-bootstrap-datepicker-plus==5.0.3

@@ -49,7 +49,7 @@ from inventory.forms import (
     ReceptionForm,
     ReceptionItemFormSet,
 )
-from inventory.models import InventoryLog, Invoice, Item, Order, Part
+from inventory.models import InventoryLog, Invoice, Item, Order, Part, Prosthesis
 from inventory.tables import (
     CurrentOrderTable,
     InventoryLogsTable,
@@ -59,6 +59,7 @@ from inventory.tables import (
     OrdersTable,
     OrderTable,
     PartItemsTable,
+    ProsthesisListTable,
     ProsthetistItemsTable,
     VendorExportTable,
     VendorOrdersTable,
@@ -120,9 +121,7 @@ class NomenclatureListView(
                 ),
                 in_reserve=Count(
                     "items",
-                    filter=Q(
-                        items__reserved__isnull=False, items__arrived=True
-                    ),
+                    filter=Q(items__reserved__isnull=False, items__arrived=True),
                 ),
             )
         )
@@ -243,9 +242,7 @@ class ReceptionView(LoginRequiredMixin, View):
                 # Объединяем созданные и обновляемые записи для лога
                 log.items.set(log_items)
 
-            Item.objects.bulk_update(
-                batch_update_items, ["date", "arrived", "price"]
-            )
+            Item.objects.bulk_update(batch_update_items, ["date", "arrived", "price"])
 
             return redirect("inventory:logs")
 
@@ -266,9 +263,7 @@ class ReceptionInvoiceView(LoginRequiredMixin, View):
         invoice = get_object_or_404(Invoice, pk=pk)
         form = ReceptionForm(initial={"invoice": invoice})
         queryset = self.get_queryset(invoice)
-        formset = ReceptionItemFormSet(
-            initial=queryset.values("part", "quantity")
-        )
+        formset = ReceptionItemFormSet(initial=queryset.values("part", "quantity"))
         context = {
             "form": form,
             "formset": formset,
@@ -356,17 +351,13 @@ class ReceptionInvoiceView(LoginRequiredMixin, View):
                 # Объединяем созданные и обновляемые записи для лога
                 log.items.set(log_items)
 
-            Item.objects.bulk_update(
-                batch_update_items, ["date", "arrived", "price"]
-            )
+            Item.objects.bulk_update(batch_update_items, ["date", "arrived", "price"])
 
             return redirect("inventory:logs")
 
         invoice = form.cleaned_data["invoice"]
         queryset = self.get_queryset(invoice)
-        formset = ReceptionItemFormSet(
-            initial=queryset.values("part", "quantity")
-        )
+        formset = ReceptionItemFormSet(initial=queryset.values("part", "quantity"))
 
         context = {
             "form": form,
@@ -414,9 +405,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
             # проверяем наличие форм в формсете,
             # что будет означать, что клиент в форме не изменился
             if formset.forms:
-                formset = ItemTakeFormSet(
-                    request.POST, form_kwargs=form_kwargs
-                )
+                formset = ItemTakeFormSet(request.POST, form_kwargs=form_kwargs)
                 if formset.is_valid():
                     comment = form.cleaned_data["comment"]
                     operation = InventoryLog.Operation.TAKE
@@ -475,9 +464,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                         item.job = job
 
                     if batch_items:
-                        Item.objects.bulk_update(
-                            batch_items, ["job", "reserved"]
-                        )
+                        Item.objects.bulk_update(batch_items, ["job", "reserved"])
 
                     # пересоздаём резервы для всех, у кого взяли
                     if parts_to_reserve:
@@ -485,9 +472,7 @@ class TakeItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
                             print(job_dict)
                             # берём первую работу и кол-во из словаря
                             job, quantity = job_dict.popitem(last=False)
-                            create_reserve(
-                                part, job, quantity, job_dict=job_dict
-                            )
+                            create_reserve(part, job, quantity, job_dict=job_dict)
                     # проверяем неснижаемый остаток
                     # TODO
                     # check_minimum_remainder()
@@ -538,9 +523,7 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
             job = form.cleaned_data["job"]
             if not formset.forms:
                 queryset = self.get_queryset(job)
-                formset = ItemReturnFormSet(
-                    None, initial=queryset, prefix="item"
-                )
+                formset = ItemReturnFormSet(None, initial=queryset, prefix="item")
                 for i, fs_form in enumerate(formset):
                     part = queryset[i]
                     max_parts = part["max_parts"]
@@ -611,9 +594,7 @@ class ReturnItemsView(LoginRequiredMixin, UserPassesTestMixin, View):
             job.items.values("part__vendor_code")
             .annotate(
                 max_parts=Count("part__vendor_code"),
-                part_name=Concat(
-                    F("part__vendor_code"), Value(" "), F("part__name")
-                ),
+                part_name=Concat(F("part__vendor_code"), Value(" "), F("part__name")),
                 units=F("part__units"),
             )
             .values("max_parts", "part_id", "part_name", "units")
@@ -640,9 +621,7 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
         job_pk = kwargs.get("job", None)
         if job_pk is not None:
             job = get_object_or_404(Job, pk=job_pk)
-            client_form = JobSelectForm(
-                user=request.user, initial={"job": job}
-            )
+            client_form = JobSelectForm(user=request.user, initial={"job": job})
         prosthesis_form = ProsthesisSelectForm(data=request.POST or None)
         formset = PickPartsFormSet(data=request.POST)
         if client_form.is_valid():
@@ -651,12 +630,8 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
             # если формсет пустой, то задаём исходные данные
             if not formset.forms:
                 initial = {"prosthesis": job.prosthesis}
-                prosthesis_form = ProsthesisSelectForm(
-                    initial=initial, job=job
-                )
-                formset = PickPartsFormSet(
-                    initial=queryset.values("part", "quantity")
-                )
+                prosthesis_form = ProsthesisSelectForm(initial=initial, job=job)
+                formset = PickPartsFormSet(initial=queryset.values("part", "quantity"))
             # иначе, проверяем валидность формы протеза и формсета
             elif prosthesis_form.is_valid() and formset.is_valid():
                 # записываем модели комплектующих в текущем резерве
@@ -733,9 +708,7 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
         job_pk = kwargs.get("job", None)
         if job_pk is not None:
             job = get_object_or_404(Job, pk=job_pk)
-            client_form = JobSelectForm(
-                user=request.user, initial={"job": job}
-            )
+            client_form = JobSelectForm(user=request.user, initial={"job": job})
         prosthesis_form = ProsthesisSelectForm(data=request.POST or None)
         formset = PickPartsFormSet(data=request.POST)
         if client_form.is_valid():
@@ -744,12 +717,8 @@ class PickPartsView(LoginRequiredMixin, UserPassesTestMixin, View):
             # если формсет пустой, то задаём исходные данные
             if not formset.forms:
                 initial = {"prosthesis": job.prosthesis}
-                prosthesis_form = ProsthesisSelectForm(
-                    initial=initial, job=job
-                )
-                formset = PickPartsFormSet(
-                    initial=queryset.values("part", "quantity")
-                )
+                prosthesis_form = ProsthesisSelectForm(initial=initial, job=job)
+                formset = PickPartsFormSet(initial=queryset.values("part", "quantity"))
             # иначе, проверяем валидность формы протеза и формсета
             elif prosthesis_form.is_valid() and formset.is_valid():
                 # записываем модели комплектующих в текущем резерве
@@ -964,9 +933,7 @@ class FreeOrderEditView(LoginRequiredMixin, UserPassesTestMixin, View):
         """
         Возвращает список для создания.
         """
-        items = [
-            Item(part_id=part_id, order=order, free_order=True)
-        ] * quantity
+        items = [Item(part_id=part_id, order=order, free_order=True)] * quantity
         return items
 
     def get_initial(self):
@@ -1085,9 +1052,7 @@ class OrderView(
         order = self.get_order()
 
         queryset = (
-            order.items.values(
-                "part__vendor_code", "part__price", "part__vendor"
-            )
+            order.items.values("part__vendor_code", "part__price", "part__vendor")
             .annotate(
                 row=Window(RowNumber()),
                 vendor_code=F("part__vendor_code"),
@@ -1225,9 +1190,7 @@ def export_orders(request, pk=None):
     )
     files = []
     for vendor in vendors:
-        vendor_queryset = order_table.filter(
-            part__vendor_id=vendor["vendor_id"]
-        )
+        vendor_queryset = order_table.filter(part__vendor_id=vendor["vendor_id"])
         table = VendorExportTable(vendor_queryset)
         output = io.BytesIO()
         workbook = Workbook(output, {"in_memory": True})
@@ -1245,16 +1208,12 @@ def export_orders(request, pk=None):
     zip_name = urllib.parse.quote(f"Заказ_от_{current_date}")
     response = HttpResponse(generate_zip(files))
     response["Content-Type"] = "application/x-zip-compressed"
-    response[
-        "Content-Disposition"
-    ] = f"attachment; filename*=UTF-8''{zip_name}.zip"
+    response["Content-Disposition"] = f"attachment; filename*=UTF-8''{zip_name}.zip"
 
     return response
 
 
-class InventoryLogListView(
-    LoginRequiredMixin, tables.SingleTableMixin, FilterView
-):
+class InventoryLogListView(LoginRequiredMixin, tables.SingleTableMixin, FilterView):
     """
     View логов инвентаря.
     """
@@ -1310,9 +1269,7 @@ class JobSetView(LoginRequiredMixin, UserPassesTestMixin, View):
         job = get_object_or_404(Job, pk=pk)
         queryset = self.get_queryset(job)
         form = ProsthesisSelectForm(job=job)
-        formset = PickPartsFormSet(
-            request.POST or queryset.values("part", "quantity")
-        )
+        formset = PickPartsFormSet(request.POST or queryset.values("part", "quantity"))
         if formset.is_valid():
             initial_parts = dict(queryset.values_list("id", "quantity"))
             parts = []
@@ -1360,9 +1317,7 @@ class JobSetView(LoginRequiredMixin, UserPassesTestMixin, View):
         return queryset
 
 
-class JobSetsView(
-    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
-):
+class JobSetsView(LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView):
     """
     View комплектов клиентов протезиста.
     """
@@ -1375,9 +1330,7 @@ class JobSetsView(
         return self.request.user.is_prosthetist
 
     def get_queryset(self) -> QuerySet[Any]:
-        queryset = Job.objects.filter(prosthetist=self.request.user).order_by(
-            "-date"
-        )
+        queryset = Job.objects.filter(prosthetist=self.request.user).order_by("-date")
         return queryset
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
@@ -1400,9 +1353,7 @@ class AllJobSetsView(JobSetsView):
         return queryset
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
-        context = super(tables.SingleTableView, self).get_context_data(
-            **kwargs
-        )
+        context = super(tables.SingleTableView, self).get_context_data(**kwargs)
         context["title"] = "Все клиенты."
 
         return context
@@ -1458,3 +1409,36 @@ class ProsthetistItemsView(
             full_name=Concat("first_name", Value(" "), "last_name")
         )
         return qs
+
+
+class ProsthesisListView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    tables.SingleTableView,
+):
+    """
+    View протезов.
+    """
+
+    table_class = ProsthesisListTable
+    template_name = "inventory/prosthesis_list.html"
+    queryset = Prosthesis.objects.all()
+
+    def test_func(self) -> bool | None:
+        return self.request.user.is_manager or self.request.user.is_prosthetist
+
+
+class ProsthesisEditView(
+    LoginRequiredMixin,
+    UserPassesTestMixin,
+    View,
+):
+    """
+    View изменения протеза.
+    """
+
+    def test_func(self) -> bool | None:
+        return self.request.user.is_manager or self.request.user.is_prosthetist
+
+    def get(self, request, pk=None):
+        pass

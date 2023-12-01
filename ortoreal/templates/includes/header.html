@@ -41,6 +41,10 @@
                  href="{% url 'inventory:nomenclature' %}">Склад</a>
             </li>
             <li class="nav-item">
+              <a class="nav-link{% if view_name == 'inventory:prosthesis_list' %} active{% endif %}"
+                 href="{% url 'inventory:prosthesis_list' %}">Протезы</a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link{% if view_name == 'inventory:margins' %} active{% endif %}"
                  href="{% url 'inventory:margins' %}">Маржа</a>
             </li>
@@ -80,10 +84,6 @@
             </li>
           {% endif %}
           {% if user.is_prosthetist or user.is_manager %}
-            <li class="nav-item">
-              <a class="nav-link text-wrap{% if view_name == 'inventory:pick_parts' %} active{% endif %}"
-                 href="{% url 'inventory:pick_parts' %}">Выбор комплектации</a>
-            </li>
             <li class="nav-item">
               <div class="btn-group" role="group">
                 <a class="btn btn-warning{% if view_name == 'inventory:take_items' %} active{% endif %}"

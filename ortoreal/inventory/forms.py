@@ -4,14 +4,7 @@ from django import forms
 from django.utils import timezone
 
 from clients.models import Client, Job
-from inventory.models import (
-    InventoryLog,
-    Invoice,
-    Item,
-    Order,
-    Part,
-    Prosthesis,
-)
+from inventory.models import InventoryLog, Invoice, Item, Order, Part, Prosthesis
 
 
 class DatePicker(forms.DateInput):
@@ -29,9 +22,7 @@ class InventoryLogFormMeta:
 
     model = InventoryLog
     widgets = {
-        "date": DatePicker(
-            attrs={"value": timezone.now}, format="%Y-%m-%d %H:%M"
-        ),
+        "date": DatePicker(attrs={"value": timezone.now}, format="%Y-%m-%d %H:%M"),
         "comment": forms.Textarea(attrs={"cols": 80, "rows": 2}),
     }
 
@@ -73,9 +64,7 @@ class InventoryTakeForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if user.is_prosthetist:
             self.fields["job"].queryset = (
-                self.fields["job"]
-                .queryset.filter(prosthetist=user)
-                .order_by("-client")
+                self.fields["job"].queryset.filter(prosthetist=user).order_by("-client")
             )
 
         self.fields["job"].empty_label = "---выбрать---"
@@ -180,9 +169,7 @@ ItemTakeFormSet = forms.formset_factory(
 
 class ItemReturnForm(forms.Form):
     part = forms.CharField(label="Артикул", required=False)
-    quantity = forms.IntegerField(
-        label="Количество", min_value=0, required=False
-    )
+    quantity = forms.IntegerField(label="Количество", min_value=0, required=False)
     part_id = forms.IntegerField(widget=forms.HiddenInput())
 
 
@@ -237,9 +224,7 @@ class ClientSelectForm(forms.Form):
     def __init__(self, user, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         if not user.is_manager:
-            self.fields["client"].queryset = self.fields[
-                "client"
-            ].queryset.filter(
+            self.fields["client"].queryset = self.fields["client"].queryset.filter(
                 prosthetist=user
             )  # .order_by("-client")
 
@@ -405,3 +390,8 @@ class InvoiceNumberForm(forms.Form):
 
 
 InvoiceNumberFormSet = forms.formset_factory(InvoiceNumberForm, extra=0)
+
+
+class ProsthesisForm(forms.ModelForm):
+    class Meta:
+        fields = "__all__"

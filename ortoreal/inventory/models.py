@@ -15,9 +15,7 @@ User = get_user_model()
 
 
 class Manufacturer(models.Model):
-    name = models.CharField(
-        max_length=1024, unique=True, blank=False, null=False
-    )
+    name = models.CharField(max_length=1024, unique=True, blank=False, null=False)
 
     class Meta:
         verbose_name = "производитель"
@@ -28,9 +26,7 @@ class Manufacturer(models.Model):
 
 
 class Vendor(models.Model):
-    name = models.CharField(
-        max_length=1024, unique=True, blank=False, null=False
-    )
+    name = models.CharField(max_length=1024, unique=True, blank=False, null=False)
 
     class Meta:
         verbose_name = "поставщик"
@@ -49,9 +45,7 @@ class Order(models.Model):
 
     @classmethod
     def get_current(cls):
-        order, _ = cls.objects.get_or_create(
-            is_current=True, defaults={"date": None}
-        )
+        order, _ = cls.objects.get_or_create(is_current=True, defaults={"date": None})
         return order
 
     class Meta:
@@ -80,10 +74,8 @@ class Order(models.Model):
 
 
 class Invoice(models.Model):
-    number = models.CharField("номер", max_length=100)
-    order = models.ForeignKey(
-        Order, verbose_name="заказ", on_delete=models.CASCADE
-    )
+    number = models.CharField("номер", max_length=100, unique=True)
+    order = models.ForeignKey(Order, verbose_name="заказ", on_delete=models.CASCADE)
     date = models.DateTimeField("дата", default=timezone.now)
 
     class Meta:
@@ -115,9 +107,7 @@ class Part(models.Model):
         null=True,
         limit_choices_to=~models.Q(name="2"),
     )
-    note = models.CharField(
-        "примечание", max_length=1024, blank=True, null=True
-    )
+    note = models.CharField("примечание", max_length=1024, blank=True, null=True)
     minimum_remainder = models.SmallIntegerField(
         "неснижаемый остаток",
         default=0,
@@ -276,6 +266,16 @@ class Prosthesis(models.Model):
     # name = models.CharField("наименование", max_length=1024, blank=True)
     price = models.DecimalField("стоимость", max_digits=11, decimal_places=2)
     region = models.CharField("регион", max_length=128, choices=Region.choices)
+    price_start_date = models.DateField(
+        "Начало действия цены",
+        blank=False,
+        null=True,
+    )
+    price_end_date = models.DateField(
+        "Конец действия цены",
+        blank=False,
+        null=True,
+    )
 
     class Meta:
         verbose_name = "протез"
@@ -291,9 +291,7 @@ class InventoryLog(models.Model):
         RETURN = "RETURN", _("Возврат")
         TAKE = "TAKE", _("Расход")
 
-    operation = models.CharField(
-        "операция", max_length=32, choices=Operation.choices
-    )
+    operation = models.CharField("операция", max_length=32, choices=Operation.choices)
     items = models.ManyToManyField(
         Item, verbose_name="комплектующие", related_name="logs"
     )

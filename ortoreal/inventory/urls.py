@@ -38,12 +38,8 @@ urlpatterns = [
         views.OrderCancelView.as_view(),
         name="order_cancel",
     ),
-    path(
-        "orders/current/download/", views.export_orders, name="export_current"
-    ),
-    path(
-        "orders/<int:pk>/download/", views.export_orders, name="export_orders"
-    ),
+    path("orders/current/download/", views.export_orders, name="export_current"),
+    path("orders/<int:pk>/download/", views.export_orders, name="export_orders"),
     path("orders/add/", views.FreeOrderAddView.as_view(), name="free_order"),
     path("logs/", views.InventoryLogListView.as_view(), name="logs"),
     path(
@@ -51,7 +47,7 @@ urlpatterns = [
         views.InventoryLogDetailView.as_view(),
         name="log_items",
     ),
-    path("pick_parts/", views.PickPartsView.as_view(), name="pick_parts"),
+    # path("pick_parts/", views.PickPartsView.as_view(), name="pick_parts"),
     path("sets/", views.JobSetsView.as_view(), name="job_sets"),
     path("sets/<int:pk>/", views.JobSetView.as_view(), name="job_set"),
     path("sets/all/", views.AllJobSetsView.as_view(), name="all_job_sets"),
@@ -60,5 +56,10 @@ urlpatterns = [
         "prosthetist_items/",
         views.ProsthetistItemsView.as_view(),
         name="prosthetist_items",
+    ),
+    path(
+        "prosthesis_list/",
+        views.ProsthesisListView.as_view(),
+        name="prosthesis_list",
     ),
 ]

@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core import serializers
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Case, Count, F, Max, Q, When
+from django.db.models import Case, Count, F, Max, Q, Value, When
 from django.db.models.functions import Concat
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,9 +22,16 @@ from clients.forms import (
     ContactForm,
     JobClientForm,
     JobForm,
+    JobStatusSelectForm,
 )
-from clients.models import Client, Comment, Contact, Job
-from clients.tables import ClientProsthesisListTable, ClientsTable
+from clients.models import Client, Comment, Contact, Job, Status
+from clients.tables import (
+    ClientProsthesisListTable,
+    ClientsTable,
+    JobItemsTable,
+    JobStatusesTable,
+)
+from inventory.models import Item
 from inventory.tables import ClientItemsTable
 
 # from clients.tables import ClientPartsTable, ClientsTable
@@ -53,11 +60,7 @@ def add_contact(request):
     form_client = ClientContactForm(request.POST or None, prefix="contact")
     form_contact = ContactForm(request.POST or None, prefix="contact")
 
-    if (
-        request.method == "POST"
-        and form_client.is_valid()
-        and form_contact.is_valid()
-    ):
+    if request.method == "POST" and form_client.is_valid() and form_contact.is_valid():
         client = form_client.save()
         contact = form_contact.save(commit=False)
         contact.save(client=client)
@@ -78,11 +81,7 @@ def edit_contact(request, pk):
     form_client = ClientContactForm(request.POST, instance=contact.client)
     form_contact = ContactForm(request.POST, instance=contact)
 
-    if (
-        request.method == "POST"
-        and form_client.is_valid()
-        and form_contact.is_valid()
-    ):
+    if request.method == "POST" and form_client.is_valid() and form_contact.is_valid():
         form_client.save()
         form_contact.save()
 
@@ -123,7 +122,7 @@ def edit_contact(request, pk):
 
 class JobDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
     """
-    View подробностей о клиенте.
+    View работы клиента
     """
 
     def test_func(self) -> bool:
@@ -131,16 +130,30 @@ class JobDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def get(self, request, pk):
         job = get_object_or_404(Job, pk=pk)
-        table = ClientItemsTable(
-            job.items.annotate(
-                item_count=Count("part"),
-                vendor_code=F("part__vendor_code"),
-                name=F("part__name"),
-            ).order_by("vendor_code")
+        table_statuses = JobStatusesTable(job.statuses.all())
+        job_items = Item.objects.filter(Q(job=job) | Q(reserved=job)).annotate(
+            status=Case(
+                When(Q(job__isnull=False) & Q(arrived=True), then=Value("в работе")),
+                When(
+                    Q(job__isnull=True) & Q(reserved__isnull=False) & Q(arrived=True),
+                    then=Value("на складе"),
+                ),
+                When(
+                    Q(reserved__isnull=False) & Q(order__isnull=False),
+                    then=Value("в заказе"),
+                ),
+                default=Value("неизвестен"),
+            )
         )
-        context = {"table": table, "job": job}
+        table_items = JobItemsTable(job_items)
+        context = {
+            "table_statuses": table_statuses,
+            "table_items": table_items,
+            "job": job,
+            "client": job.client,
+        }
 
-        return render(request, "clients/client.html", context)
+        return render(request, "clients/job_detail.html", context)
 
 
 # class AllClientsListView(ClientListView):
@@ -164,9 +177,7 @@ class JobDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
 #         return context
 
 
-class ClientsListView(
-    LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView
-):
+class ClientsListView(LoginRequiredMixin, UserPassesTestMixin, tables.SingleTableView):
     """
     View всех клиентов со статусами работ.
     """
@@ -225,9 +236,7 @@ class ClientView(LoginRequiredMixin, UserPassesTestMixin, View):
         return render(request, "clients/client.html", context)
 
     def get_queryset(self):
-        queryset = Job.objects.filter(client=self.get_client()).order_by(
-            "-date"
-        )
+        queryset = Job.objects.filter(client=self.get_client()).order_by("-date")
         return queryset
 
 
@@ -323,7 +332,52 @@ class ClientCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
                 contact = form_contact.save(commit=False)
                 contact.client = client
                 contact.save()
+                if contact.result == Contact.YesNo.YES:
+                    return redirect("clients:add_job_client", pk=client.pk)
                 return redirect("clients:client", pk=client.pk)
 
         context = {"form_client": form_client, "form_contact": form_contact}
         return render(request, "clients/add.html", context)
+
+
+class JobChangeStatusView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """
+    View смены статуса работы.
+    """
+
+    def test_func(self) -> bool:
+        return self.request.user.is_manager or self.request.user.is_prosthetist
+
+    def get(self, request, pk, status_pk=None):
+        job = get_object_or_404(Job, pk=pk)
+        status = job.statuses.latest("date")
+        if status_pk is not None:
+            status = get_object_or_404(Status, pk=status_pk)
+        form = JobStatusSelectForm(instance=status)
+        context = {"form": form, "job": job}
+        return render(request, "clients/job_status_change.html", context)
+
+    def post(self, request, pk, status_pk=None):
+        job = get_object_or_404(Job, pk=pk)
+        status = job.statuses.latest("date")
+        if status_pk is not None:
+            status = get_object_or_404(Status, pk=status_pk)
+        form = JobStatusSelectForm(request.POST or None)
+        if form.is_valid():
+            name = form.cleaned_data["name"]
+            date = form.cleaned_data["date"]
+            comment = form.cleaned_data["comment"]
+            if name == status.name or status_pk is not None:
+                status.date = date
+                status.comment = comment
+                status.save()
+            else:
+                status = form.save(commit=False)
+                status.job = job
+                status.save()
+
+            return redirect("clients:client", pk=job.client.pk)
+
+        context = {"form": form, "job": job}
+
+        return render(request, "clients/job_status_change.html", context)

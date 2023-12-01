@@ -13,7 +13,7 @@ import django_tables2 as tables
 from clients.models import Job
 from clients.tables import ItemsColumn
 from core.utils import get_date_display
-from inventory.models import InventoryLog, Item, Order, Part, Vendor
+from inventory.models import InventoryLog, Item, Order, Part, Prosthesis, Vendor
 from inventory.utils import get_dec_display, wrap_in_color
 from users.models import User
 
@@ -34,9 +34,7 @@ class NomenclatureTable(tables.Table):
     Таблица номенклатуры.
     """
 
-    vendor_code = tables.Column(
-        "Артикул", attrs={"td": {"style": "min-width: 18ch;"}}
-    )
+    vendor_code = tables.Column("Артикул", attrs={"td": {"style": "min-width: 18ch;"}})
     quantity = tables.Column("На складе")
     price = tables.Column(
         "Цена, руб.",
@@ -155,14 +153,10 @@ class VendorOrderTable(tables.Table):
     row = tables.Column("№", empty_values=())
     vendor_code = tables.Column("Артикул")
     quantity = tables.Column("Количество")
-    price = tables.Column(
-        "Примерная цена, руб.", attrs=TD_END, footer="Всего:"
-    )
+    price = tables.Column("Примерная цена, руб.", attrs=TD_END, footer="Всего:")
     price_mul = tables.Column(
         "Всего, руб.",
-        footer=lambda table: get_dec_display(
-            sum(x["price_mul"] for x in table.data)
-        ),
+        footer=lambda table: get_dec_display(sum(x["price_mul"] for x in table.data)),
         attrs=TD_END,
     )
 
@@ -258,9 +252,7 @@ class OrdersTable(tables.Table):
             content = wrap_in_color(color=part["color"], string=part["status"])
             items.append(content)
             # вставляем разделение
-            if ((len(items) + 1) % (per_line + 1) == 0) and (
-                i < (len(parts) + 1)
-            ):
+            if ((len(items) + 1) % (per_line + 1) == 0) and (i < (len(parts) + 1)):
                 items.append(separator)
 
         return mark_safe(" ".join(items))
@@ -364,9 +356,7 @@ class VendorOrdersTable(tables.Table):
             content = wrap_in_color(color=part["color"], string=part["status"])
             items.append(content)
             # вставляем разделение
-            if ((len(items) + 1) % (PER_LINE + 1) == 0) and (
-                i < (len(parts) + 1)
-            ):
+            if ((len(items) + 1) % (PER_LINE + 1) == 0) and (i < (len(parts) + 1)):
                 items.append(SEPARATOR)
 
         return mark_safe(" ".join(items))
@@ -458,7 +448,7 @@ class JobSetsTable(tables.Table):
         verbose_name="Комплектующие", separator="<br/>", per_line=10
     )
     client = tables.Column(
-        "Клиент", linkify=lambda record: record.client.get_absolute_url()
+        "Клиент", linkify=lambda record: record.client.get_absolute_url
     )
     status = tables.Column("Статус", empty_values=())
 
@@ -476,9 +466,7 @@ class JobSetsTable(tables.Table):
         region = "МО"
         if value.region == "Moscow":
             region = "М"
-        string = " ".join(
-            [region, value.number, "<br/>", get_dec_display(value.price)]
-        )
+        string = " ".join([region, value.number, "<br/>", get_dec_display(value.price)])
         return mark_safe(string)
 
     class Meta:
@@ -612,3 +600,14 @@ class ProsthetistItemsTable(tables.Table):
             "full_name",
             "items",
         ]
+
+
+class ProsthesisListTable(tables.Table):
+    """
+    Таблица протезов.
+    """
+
+    class Meta:
+        model = Prosthesis
+        sequence = ["number", "kind", "price", "region"]
+        exclude = ["id"]

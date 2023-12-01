@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+{% load static %}
+{% block title %}
+  {% if job %}
+    {{ job.client }}. {{ job.status_display }}
+  {% else %}
+    {{ client }} - {{ client.get_region_display }}
+  {% endif %}
+{% endblock title %}
+{% block static %}
+  <link rel="stylesheet" href="{% static "css/table.css" %}" />
+  <link rel="stylesheet" href="{% static "css/item_pill.css" %}" />
+  <link rel="stylesheet" href="{% static "css/status_pill.css" %}" />
+{% endblock static %}
+{% block content %}
+  <div class="card-body">
+    <div class="row">
+      {% comment %}
+      <div class="col-3">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% bootstrap_form form %}
+          <input type="submit" value="Сохранить">
+        </form>
+      {% endcomment %}
+    </div>
+    {% load django_tables2 %}
+    <div class="col">
+      <h3>
+        {% if job %}
+          {{ job.client }}. {{ job.status_display }}
+        {% else %}
+          {{ client }} - {{ client.get_region_display }}
+        {% endif %}
+      </h3>
+      {% comment %}
+            <div class="row">
+            <a class="btn btn-secondary col" href="{% url 'clients:add_contact' pk=client.pk %}">Добавить обращение</a>
+          <a class="btn btn-primary col" href="{% url 'clients:add_job_client' pk=client.pk %}">Добавить работу</a>
+      </div>
+      {% endcomment %}
+      <div class="row">
+        <div class="col">{% render_table table_statuses %}</div>
+        <div class="col">{% render_table table_items %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="{% static 'js/table_row_link.js' %}"></script>
+{% endblock content %}

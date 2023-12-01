@@ -59,7 +59,7 @@ class Status(models.Model):
 
     def __str__(self) -> str:
         date = date_format(
-            self.date, format="SHORT_DATE_FORMAT", use_l10n=True
+            timezone.localdate(self.date), format="SHORT_DATE_FORMAT", use_l10n=True
         )
         return f"{self.get_name_display()} {date}"
 
@@ -70,6 +70,12 @@ class Status(models.Model):
     def save(self, *args, **kwargs):
         self.color = self.name
         super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        return reverse(
+            "clients:edit_job_status",
+            kwargs={"pk": self.job.pk, "status_pk": self.pk},
+        )
 
 
 class ContactTypeChoice(models.Model):
@@ -117,10 +123,8 @@ class Client(models.Model):
     )
     surname = models.CharField(_("отчество"), max_length=150, blank=True)
     birth_date = models.DateField(_("дата рождения"), blank=True, null=True)
-    phone = PhoneNumberField(
-        _("телефон"), null=False, blank=False, unique=True
-    )
-    address = models.TextField(_("адрес"), max_length=1000, blank=True)
+    phone = PhoneNumberField(_("телефон"), blank=False, null=False, unique=True)
+    address = models.TextField(_("адрес"), max_length=1000)
     prosthetist = models.ForeignKey(
         User,
         verbose_name="протезист",
@@ -158,7 +162,7 @@ class Client(models.Model):
     def get_name_with_initials(self):
         name = f"{self.last_name} {self.first_name[0]}."
         if self.surname:
-            name += f" {self.surname[0]}."
+            name += f"{self.surname[0]}."
         return name
 
     @property
@@ -256,9 +260,7 @@ class Contact(models.Model):
         help_text="примерная дата получения последнего протеза",
     )
     prosthesis_type = models.CharField("протез", max_length=150, blank=True)
-    call_result = models.CharField(
-        _("результат звонка"), max_length=1024, blank=True
-    )
+    call_result = models.CharField(_("результат звонка"), max_length=1024, blank=True)
     # comment = models.CharField(
     #     _("комментарий"),
     #     max_length=1024,
@@ -286,13 +288,13 @@ class Contact(models.Model):
     def __str__(self) -> str:
         return f"{self.client}"
 
-    def save(self, *args, **kwargs):
-        """
-        Создаём работу, если клиент согласился в обращении.
-        """
-        super().save(*args, **kwargs)
-        if self.result == Contact.YesNo.YES:
-            Job.objects.get_or_create(client=self.client)
+    # def save(self, *args, **kwargs):
+    #     """
+    #     Создаём работу, если клиент согласился в обращении.
+    #     """
+    #     super().save(*args, **kwargs)
+    #     if self.result == Contact.YesNo.YES:
+    #         Job.objects.get_or_create(client=self.client)
 
 
 class Comment(models.Model):

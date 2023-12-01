@@ -186,3 +186,5 @@ DJANGO_TABLES2_TABLE_ATTRS = {
         "class": "table-light",
     },
 }
+
+LOGIN_URL = "admin/login/"

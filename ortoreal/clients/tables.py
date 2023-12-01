@@ -3,13 +3,13 @@ from django.db import models
 from django.db.models import Case, F, Q, Value, When
 from django.db.models.functions import Concat
 from django.urls import reverse
-from django.utils.html import conditional_escape, mark_safe
+from django.utils.html import conditional_escape, format_html, mark_safe
 
 import django_tables2 as tables
 from django_tables2.columns import booleancolumn
 from django_tables2.columns.base import LinkTransform, library
 
-from clients.models import Client, Job
+from clients.models import Client, Job, Status
 from inventory.models import InventoryLog, Item, Part
 from inventory.utils import dec2pre, get_dec_display, wrap_in_color
 
@@ -181,7 +181,9 @@ class ClientProsthesisListTable(tables.Table):
         status = record.statuses.latest("date")
         status_name = "-".join(status.name.split())
         column.attrs = {"td": {"class": status_name}}
-        return record.status_display
+        job_url = reverse("clients:change_job_status", kwargs={"pk": record.pk})
+        button = f'<a class="btn btn-secondary" href="{job_url}">Изменить</a>'
+        return mark_safe(record.status_display + "</br>" + button)
 
     class Meta:
         model = Job
@@ -196,9 +198,10 @@ class ClientProsthesisListTable(tables.Table):
         ]
         exclude = ["id", "client", "is_finished"]
         row_attrs = {
-            "data-href": lambda record: reverse(
-                "inventory:job_set", kwargs={"pk": record.pk}
-            ),
+            # "data-href": lambda record: reverse(
+            #     "inventory:job_set", kwargs={"pk": record.pk}
+            # ),
+            "data-href": lambda record: record.get_absolute_url,
             "style": "cursor: pointer;",
         }
 
@@ -263,9 +266,7 @@ class ClientsTable(tables.Table):
     jobs_in_progress = tables.Column("Активные", accessor="jobs_in_progress")
     statuses = tables.Column("Статусы активных работ", empty_values=())
     passport = tables.Column("Паспорт", empty_values=(), accessor="passport")
-    bank_details = tables.Column(
-        "Реквизиты", empty_values=(), accessor="bank_details"
-    )
+    bank_details = tables.Column("Реквизиты", empty_values=(), accessor="bank_details")
     snils = tables.Column(empty_values=())
     snils_scan = ClientsBooleanColumn
     ipr = ClientsBooleanColumn
@@ -325,3 +326,50 @@ class ClientsTable(tables.Table):
             "data-href": lambda record: record.get_absolute_url,
             "style": "cursor: pointer;",
         }
+
+
+class JobStatusesTable(tables.Table):
+    """
+    Таблица статусов работы.
+    """
+
+    class Meta:
+        model = Status
+        sequence = [
+            "date",
+            "name",
+            "comment",
+        ]
+        exclude = ["color", "id", "job"]
+        row_attrs = {
+            "data-href": lambda record: record.get_absolute_url,
+            "style": "cursor: pointer;",
+        }
+
+
+class JobItemsTable(tables.Table):
+    """
+    Таблица комплектующих работы.
+    """
+
+    part = tables.Column("Артикул", accessor="part.vendor_code")
+    status = tables.Column("Статус", accessor="status")
+
+    class Meta:
+        model = Item
+        sequence = [
+            "part",
+            "date",
+            "order",
+            "invoice",
+            "status",
+        ]
+        exclude = [
+            "id",
+            "arrived",
+            "vendor2",
+            "job",
+            "reserved",
+            "price",
+            "free_order",
+        ]

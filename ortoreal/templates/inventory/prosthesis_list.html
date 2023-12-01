@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}
+  Протезы
+{% endblock title %}
+{% block static %}
+  <link rel="stylesheet" href="{% static "css/table.css" %}" />
+  <link rel="stylesheet" href="{% static "css/item_pill.css" %}" />
+{% endblock static %}
+{% block content %}
+  {% load django_tables2 %}
+  <div class="card-body">
+    <h4>Протезы</h4>
+    {% render_table table %}
+  </div>
+  <script src="{% static 'js/table_row_link.js' %}"></script>
+{% endblock content %}
