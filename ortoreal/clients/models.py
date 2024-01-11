@@ -123,7 +123,8 @@ class Client(models.Model):
     )
     surname = models.CharField(_("отчество"), max_length=150, blank=True)
     birth_date = models.DateField(_("дата рождения"), blank=True, null=True)
-    phone = PhoneNumberField(_("телефон"), blank=False, null=False, unique=True)
+    phone = models.CharField(_("телефон"), blank=True, null=True)
+    # phone = PhoneNumberField(_("телефон"), blank=False, null=False, unique=True)
     address = models.TextField(_("адрес"), max_length=1000)
     prosthetist = models.ForeignKey(
         User,
@@ -145,10 +146,14 @@ class Client(models.Model):
     ipr = models.FileField(
         "ИПР", upload_to=client_directory_path, blank=True, null=True
     )
+    debt = models.DecimalField(
+        "Долги, руб.", max_digits=11, decimal_places=2, blank=True, null=True
+    )
 
     sprmse = models.FileField(
         "CпрМСЭ", upload_to=client_directory_path, blank=True, null=True
     )
+    notes = models.CharField("примечания", blank=True, null=True)
 
     def get_phone_display(self):
         return self.phone.as_national.replace(" ", "")

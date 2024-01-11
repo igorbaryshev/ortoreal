@@ -276,6 +276,7 @@ class Prosthesis(models.Model):
         blank=False,
         null=True,
     )
+    is_active = models.BooleanField("активный", default=True, blank=True, null=True)
 
     class Meta:
         verbose_name = "протез"
